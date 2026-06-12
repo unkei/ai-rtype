@@ -204,6 +204,102 @@ export class Turret extends Enemy {
   }
 }
 
+// Loop-end boss: large core ship with spread / ring attacks.
+export class Boss extends Enemy {
+  constructor(rank) {
+    super(W + 120, H / 2, rank);
+    this.hp = Math.round(55 * rank);
+    this.maxHp = this.hp;
+    this.radius = 30;
+    this.score = 5000;
+    this.phase = 'enter';
+    this.attackT = 1.2;
+    this.hitFlash = 0;
+  }
+
+  move(dt, { player, bullets }) {
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+
+    if (this.phase === 'enter') {
+      this.x -= 130 * dt;
+      if (this.x <= W - 150) this.phase = 'fight';
+      return;
+    }
+
+    this.y = H / 2 + Math.sin(this.t * 0.8) * (H / 2 - 130);
+    this.attackT -= dt;
+    if (this.attackT > 0 || !player) return;
+
+    const v = 180 + 35 * this.rank;
+    if (Math.random() < 0.6) {
+      // 3-way aimed spread
+      const base = Math.atan2(player.y - this.y, player.x - this.x);
+      for (const off of [-0.22, 0, 0.22]) {
+        bullets.push({
+          x: this.x - 24, y: this.y,
+          vx: Math.cos(base + off) * v, vy: Math.sin(base + off) * v,
+          r: 5, dead: false,
+        });
+      }
+      this.attackT = Math.max(1.1 / this.rank, 0.45);
+    } else {
+      // bullet ring
+      const n = 10;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + this.t;
+        bullets.push({
+          x: this.x, y: this.y,
+          vx: Math.cos(a) * v * 0.8, vy: Math.sin(a) * v * 0.8,
+          r: 4, dead: false,
+        });
+      }
+      this.attackT = Math.max(1.8 / this.rank, 0.8);
+    }
+  }
+
+  render(ctx) {
+    const { x, y } = this;
+    ctx.save();
+
+    // hull
+    ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#5d4a7a';
+    ctx.strokeStyle = '#b59ae0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 34, y);
+    ctx.lineTo(x - 6, y - 44);
+    ctx.lineTo(x + 44, y - 30);
+    ctx.lineTo(x + 56, y);
+    ctx.lineTo(x + 44, y + 30);
+    ctx.lineTo(x - 6, y + 44);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // rotating shield arcs
+    ctx.strokeStyle = 'rgba(181,154,224,0.55)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      const a = this.t * 1.6 + (i * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 52, a, a + 1.1);
+      ctx.stroke();
+    }
+
+    // glowing core (the weak point look)
+    const pulse = 0.6 + Math.sin(this.t * 6) * 0.25;
+    ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : `rgba(255,80,120,${pulse})`;
+    ctx.beginPath();
+    ctx.arc(x - 2, y, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffd0e0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
 // --------------------------------------------------------------- manager
 
 export class EnemyManager {
@@ -215,6 +311,9 @@ export class EnemyManager {
     this.script = this._buildScript();
     this.idx = 0;
     this.spawningEnabled = true;
+    this.phase = 'waves';     // waves → warning → boss → (loop++) waves
+    this.boss = null;
+    this.warnT = 0;
   }
 
   get rank() {
@@ -262,14 +361,30 @@ export class EnemyManager {
   update(dt, player) {
     this.t += dt;
     if (this.spawningEnabled) {
-      while (this.idx < this.script.length && this.script[this.idx].t <= this.t) {
-        this.script[this.idx].fn(this);
-        this.idx++;
-      }
-      if (this.idx >= this.script.length && this.t >= LOOP_T) {
-        this.t -= LOOP_T;
-        this.idx = 0;
-        this.loop++;
+      if (this.phase === 'waves') {
+        while (this.idx < this.script.length && this.script[this.idx].t <= this.t) {
+          this.script[this.idx].fn(this);
+          this.idx++;
+        }
+        if (this.idx >= this.script.length && this.t >= LOOP_T) {
+          this.phase = 'warning';
+          this.warnT = 2.2;
+        }
+      } else if (this.phase === 'warning') {
+        this.warnT -= dt;
+        if (this.warnT <= 0) {
+          this.boss = new Boss(this.rank);
+          this.enemies.push(this.boss);
+          this.phase = 'boss';
+        }
+      } else if (this.phase === 'boss') {
+        if (this.boss && this.boss.dead) {
+          this.boss = null;
+          this.loop++;
+          this.t = 0;
+          this.idx = 0;
+          this.phase = 'waves';
+        }
       }
     }
 

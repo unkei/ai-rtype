@@ -116,11 +116,39 @@ export class Game {
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
+    this.hiScore = this._loadHiScore();
+    this.newRecord = false;
+  }
+
+  _loadHiScore() {
+    try {
+      return Number(localStorage.getItem('ai-rtype-hiscore')) || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  _saveHiScore() {
+    try {
+      localStorage.setItem('ai-rtype-hiscore', String(this.hiScore));
+    } catch {
+      // private mode etc. — hi-score just won't persist
+    }
+  }
+
+  addScore(points, x, y) {
+    this.score += points;
+    this.fx.popup(x, y - 16, String(points));
+    if (this.score > this.hiScore) {
+      this.hiScore = this.score;
+      this.newRecord = true;
+    }
   }
 
   setState(s) {
     this.state = s;
     this.stateTime = 0;
+    if (s === STATE.GAMEOVER) this._saveHiScore();
   }
 
   startGame() {
@@ -131,6 +159,7 @@ export class Game {
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
+    this.newRecord = false;
     this.setState(STATE.PLAYING);
   }
 
@@ -184,6 +213,7 @@ export class Game {
         if ((e.x - cx) ** 2 + (e.y - cy) ** 2 > e.radius ** 2) continue;
 
         e.hp -= b.damage;
+        if (e.hitFlash !== undefined) e.hitFlash = 0.08;
         if (b.kind === 'shot') {
           b.dead = true;
           this.fx.hit(b.x + b.w / 2, b.y);
@@ -192,8 +222,14 @@ export class Game {
         }
         if (e.hp <= 0) {
           e.dead = true;
-          this.score += e.score;
-          this.fx.explosion(e.x, e.y, { color: '#ffb060' });
+          this.addScore(e.score, e.x, e.y);
+          const big = e.radius > 20;
+          this.fx.explosion(e.x, e.y, {
+            color: big ? '#ff80c0' : '#ffb060',
+            count: big ? 70 : 24,
+            speed: big ? 340 : 220,
+            size: big ? 6 : 4,
+          });
         }
         if (b.dead) break;
       }
@@ -207,6 +243,7 @@ export class Game {
         e.hp -= 2;
         if (e.hp <= 0) {
           e.dead = true;
+          this.addScore(e.score, e.x, e.y);
           this.fx.explosion(e.x, e.y, { color: '#ffb060' });
         }
         this.killPlayer();
@@ -265,6 +302,11 @@ export class Game {
     ctx.font = '20px monospace';
     ctx.fillStyle = '#5a7aa0';
     ctx.fillText('— FABLE EDITION —', W / 2, H / 2 - 18);
+    if (this.hiScore > 0) {
+      ctx.fillStyle = '#ffe9a0';
+      ctx.font = '18px monospace';
+      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 18);
+    }
     if (Math.floor(this.time * 2) % 2 === 0) {
       ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
@@ -281,6 +323,13 @@ export class Game {
     this.player.render(ctx);
     this.fx.render(ctx);
     this.renderHud(ctx);
+
+    if (this.enemies.phase === 'warning' && Math.floor(this.time * 4) % 2 === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff5050';
+      ctx.font = 'bold 48px monospace';
+      ctx.fillText('WARNING', W / 2, H / 2 - 10);
+    }
   }
 
   renderGameover(ctx) {
@@ -290,7 +339,20 @@ export class Game {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff6060';
     ctx.font = 'bold 56px monospace';
-    ctx.fillText('GAME OVER', W / 2, H / 2);
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 30);
+    ctx.fillStyle = '#dce8ff';
+    ctx.font = '24px monospace';
+    ctx.fillText(`SCORE ${String(this.score).padStart(7, '0')}`, W / 2, H / 2 + 24);
+    if (this.newRecord && Math.floor(this.time * 3) % 2 === 0) {
+      ctx.fillStyle = '#ffe9a0';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText('★ NEW RECORD! ★', W / 2, H / 2 + 60);
+    }
+    if (this.stateTime > 1 && Math.floor(this.time * 2) % 2 === 0) {
+      ctx.fillStyle = '#9ecbff';
+      ctx.font = '18px monospace';
+      ctx.fillText('PRESS FIRE / TAP TO CONTINUE', W / 2, H / 2 + 104);
+    }
   }
 
   renderHud(ctx) {
@@ -298,6 +360,30 @@ export class Game {
     ctx.font = 'bold 20px monospace';
     ctx.fillStyle = '#dce8ff';
     ctx.fillText(`SCORE ${String(this.score).padStart(7, '0')}`, 16, 32);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffe9a0';
+    ctx.fillText(`HI ${String(this.hiScore).padStart(7, '0')}`, W - 16, 32);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#8fa8cc';
+    ctx.font = '16px monospace';
+    ctx.fillText(`STAGE ${this.enemies.loop + 1}`, W / 2, 30);
+
+    // boss HP bar
+    const boss = this.enemies.boss;
+    if (boss && !boss.dead) {
+      const w = 360;
+      const x = W / 2 - w / 2;
+      ctx.fillStyle = 'rgba(20,30,50,0.8)';
+      ctx.fillRect(x - 2, 40, w + 4, 12);
+      ctx.fillStyle = '#ff5080';
+      ctx.fillRect(x, 42, w * Math.max(boss.hp / boss.maxHp, 0), 8);
+      ctx.strokeStyle = '#b59ae0';
+      ctx.strokeRect(x - 2, 40, w + 4, 12);
+    }
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px monospace';
 
     // remaining lives as small ship icons
     for (let i = 0; i < this.lives; i++) {
