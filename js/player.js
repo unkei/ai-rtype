@@ -1,5 +1,6 @@
 // Player ship, normal shots, and charge beam.
 import { W, H } from './config.js';
+import { audio } from './audio.js';
 
 const SPEED = 320;
 const MARGIN_X = 20;
@@ -119,6 +120,7 @@ export class Player {
 
     if (input.firePressed && this.cooldown <= 0) {
       bullets.spawnShot(nose.x, nose.y);
+      audio.shoot();
       this.cooldown = SHOT_COOLDOWN;
       this.charging = true;
       this.chargeTime = 0;
@@ -129,6 +131,7 @@ export class Player {
     if (this.charging && !input.fire) {
       if (this.chargeTime >= CHARGE_MIN) {
         bullets.spawnBeam(nose.x, nose.y, this.chargeLevel);
+        audio.beam(this.chargeLevel);
       }
       this.charging = false;
       this.chargeTime = 0;
