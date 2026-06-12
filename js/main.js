@@ -151,7 +151,11 @@ export class Game {
     this.stateTime = 0;
     if (s === STATE.GAMEOVER) {
       this._saveHiScore();
+      audio.stopMusic(0.3);
       audio.gameover();
+    }
+    if (s === STATE.TITLE) {
+      audio.playMusic('title');
     }
   }
 
@@ -165,7 +169,7 @@ export class Game {
     this.respawnTimer = 0;
     this.newRecord = false;
     this.setState(STATE.PLAYING);
-    audio.start();
+    audio.playMusic('stage', 0);
   }
 
   update(dt) {
@@ -173,7 +177,7 @@ export class Game {
     this.stateTime += dt;
     this.input.beginFrame();
     // Web Audio needs a user gesture before it can make sound
-    if (this.input.firePressed || this.input.startPressed) audio.unlock();
+    if (this.input.firePressed || this.input.startPressed || this.input.fire) audio.unlock();
     this.starfield.update(dt);
     this.terrain.update(dt);
 
@@ -195,7 +199,17 @@ export class Game {
     this.bullets.update(dt);
     const prevPhase = this.enemies.phase;
     this.enemies.update(dt, this.player.alive ? this.player : null);
-    if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
+    const phase = this.enemies.phase;
+    if (phase !== prevPhase) {
+      if (phase === 'warning') {
+        audio.warning();
+        audio.stopMusic(0.8);
+      } else if (phase === 'boss') {
+        audio.playMusic('boss', this.enemies.loop);
+      } else if (phase === 'waves') {
+        audio.playMusic('stage', this.enemies.loop);
+      }
+    }
     this.fx.update(dt);
     this.checkCollisions();
 
@@ -273,6 +287,7 @@ export class Game {
   killPlayer() {
     const p = this.player;
     this.fx.explosion(p.x, p.y, { color: '#7df9ff', count: 40, speed: 300, size: 5 });
+    audio.chargeEnd();
     audio.explode(true);
     p.alive = false;
     this.lives--;

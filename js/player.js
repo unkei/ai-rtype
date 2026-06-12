@@ -103,6 +103,7 @@ export class Player {
     this.invuln = 2;
     this.charging = false;
     this.chargeTime = 0;
+    audio.chargeEnd();
   }
 
   update(dt, input, bullets) {
@@ -127,8 +128,13 @@ export class Player {
     }
     if (this.charging && input.fire) {
       this.chargeTime += dt;
+      if (this.chargeTime > 0.15) {
+        audio.chargeStart();
+        audio.chargeSet(this.chargeRatio);
+      }
     }
     if (this.charging && !input.fire) {
+      audio.chargeEnd();
       if (this.chargeTime >= CHARGE_MIN) {
         bullets.spawnBeam(nose.x, nose.y, this.chargeLevel);
         audio.beam(this.chargeLevel);
