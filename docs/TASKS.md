@@ -24,17 +24,17 @@
 - [x] 動作確認: 星が流れる画面が表示される
 - [x] PR作成・マージ
 
-## 3. feature/player — 自機と入力システム
+## 3. feature/player — 自機と入力システム ✅
 
-- [ ] InputManager クラス: キーボード(矢印/WASD + Z/Space)
-- [ ] InputManager: Gamepad API 対応(標準マッピング、左スティック+十字キー、Aボタン)
-- [ ] InputManager: タッチ対応(左側バーチャルスティック + 右側ファイアボタン、HTML overlay)
-- [ ] Player クラス: 8方向移動、画面内クランプ
-- [ ] 通常ショット(連射、BulletManager とプーリング)
-- [ ] チャージショット(押し続けてチャージ→離して太いビーム)
-- [ ] HUD: チャージメーター表示
-- [ ] 動作確認: キーボード/ゲームパッド/タッチ(DevToolsエミュレーション)で操作・射撃できる
-- [ ] PR作成・マージ
+- [x] InputManager クラス: キーボード(矢印/WASD + Z/Space)
+- [x] InputManager: Gamepad API 対応(標準マッピング、左スティック+十字キー、Aボタン)
+- [x] InputManager: タッチ対応(左側バーチャルスティック + 右側ファイアボタン、HTML overlay)
+- [x] Player クラス: 8方向移動、画面内クランプ
+- [x] 通常ショット(連射、BulletManager とプーリング)
+- [x] チャージショット(押し続けてチャージ→離して太いビーム)
+- [x] HUD: チャージメーター表示
+- [x] 動作確認: キーボード/ゲームパッド/タッチ(DevToolsエミュレーション)で操作・射撃できる
+- [x] PR作成・マージ
 
 ## 4. feature/enemies — 敵とウェーブ
 
