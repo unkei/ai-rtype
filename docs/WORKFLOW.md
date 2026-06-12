@@ -4,17 +4,17 @@
 
 ## 絶対ルール
 
-1. **main ブランチには触れない。** commit / push / checkout / merge いずれも禁止。
-   GitHub Pages の配信元設定の変更は可（ブランチ自体を変更しないため）。
-2. **ベースブランチは `fable_ver`。** すべての PR は `--base fable_ver` で作成する。
-3. 1タスク = 1ブランチ = 1PR。ブランチ名は `feature/fable-<topic>` または `fix/fable-<topic>`。
+1. **ベースブランチは `main`。** すべての PR は `--base main` で作成する。
+2. **main へ直接 commit / push しない。** 変更は必ず PR を経由して squash マージする。
+3. 1タスク = 1ブランチ = 1PR。ブランチ名は `feature/<topic>` または `fix/<topic>`。
+4. `fable_ver` は過去の開発系列（main と同内容で凍結）。新規作業に使わない。
 
 ## タスクの進め方（繰り返し単位）
 
 ```bash
-# 1. 最新の fable_ver から分岐
-git checkout fable_ver && git pull origin fable_ver
-git checkout -b feature/fable-<topic>
+# 1. 最新の main から分岐
+git checkout main && git pull origin main
+git checkout -b feature/<topic>
 
 # 2. 実装し、docs/PLAN.md の該当タスクの状態を更新（🔄→✅）
 # 3. 構文チェック（最低限）
@@ -22,22 +22,26 @@ for f in js/*.js; do node --check "$f"; done
 
 # 4. コミット & プッシュ & PR 作成
 git add -A && git commit -m "feat: <要約>"
-git push -u origin feature/fable-<topic>
-gh pr create --base fable_ver --title "<タイトル>" --body "<説明>"
+git push -u origin feature/<topic>
+gh pr create --base main --title "<タイトル>" --body "<説明>"
 
-# 5. fable_ver に戻ってから squash マージ（gh が default branch=main を
-#    checkout してしまうのを防ぐため、必ず先に fable_ver に戻る）
-git checkout fable_ver
+# 5. main に戻ってから squash マージ
+git checkout main
 gh pr merge <PR番号> --squash --delete-branch
-git pull origin fable_ver
+git pull origin main
 ```
 
 ## セッション再開手順
 
 1. `docs/PLAN.md` を読み、⬜/🔄 のタスクを確認する
-2. `git log --oneline fable_ver -10` と `gh pr list --base fable_ver` で進捗を照合
+2. `git log --oneline main -10` と `gh pr list --base main` で進捗を照合
 3. 上記「タスクの進め方」に従って次のタスクを実行する
-4. 全タスク ✅ になったら、公開URLをブラウザで動作確認して完了
+4. タスク完了ごとに、公開URL（https://unkei.github.io/ai-rtype/）で動作確認する
+
+## 公開（GitHub Pages）
+
+- 配信元: **main ブランチ** / ルート（legacy build、`.nojekyll` あり）
+- main へのマージで自動的に再ビルド・反映される（数分かかることがある）
 
 ## コーディング規約
 
