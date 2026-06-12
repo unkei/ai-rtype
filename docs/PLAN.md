@@ -21,7 +21,7 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 6 | 仕上げと公開: Web Audio 効果音、タッチUI調整、README、GitHub Pages 配信元切替＋動作確認 | `feature/fable-polish` | ✅ 完了 |
 | 7 | 運用切替: main を通常運用ブランチ化（fable_ver を force push で反映済み）、docs のルール更新、Pages 配信元を main に変更 | `chore/main-workflow` | ✅ 完了 |
 | 8 | BGM実装＋リッチ効果音: Web Audio チップチューンシーケンサー（ステージ曲/ボス曲/タイトル曲、ステージごとに調・テンポ変化）、レイヤードSE、チャージ音ループ | `feature/bgm-rich-audio` | ✅ 完了 |
-| 9 | ドット絵スプライト＋アニメーション: 全キャラをピクセルアート化（コード埋め込みデータ）、フレームアニメ、チャージ時のエネルギー吸い込みパーティクル | `feature/pixel-sprites` | ⬜ 未着手 |
+| 9 | ドット絵スプライト＋アニメーション: 全キャラをピクセルアート化（コード埋め込みデータ）、フレームアニメ、チャージ時のエネルギー吸い込みパーティクル | `feature/pixel-sprites` | ✅ 完了 |
 | 10 | ゲームプレイ拡張: オプション等のパワーアップ、ステージごとの敵構成・背景の変化と新敵種、ステージクリア演出＋ボーナス得点表示 | `feature/powerups-stages` | ⬜ 未着手 |
 
 状態の凡例: ⬜ 未着手 / 🔄 作業中 / ✅ 完了
@@ -36,7 +36,8 @@ js/input.js       … InputManager（3入力系統を統合、エッジ検出）
 js/player.js      … 自機、弾、チャージビーム
 js/enemies.js     … 敵各種、ウェーブ管理、ボス
 js/fx.js          … パーティクル、スコアポップアップ
-js/audio.js       … Web Audio による効果音（外部アセットなし）
+js/sprites.js     … ドット絵スプライト（埋め込みピクセルデータから生成）
+js/audio.js       … Web Audio による BGM・効果音（外部アセットなし）
 ```
 
 - 論理解像度 960×540。ウィンドウに合わせレターボックスでスケール

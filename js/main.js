@@ -5,6 +5,7 @@ import { Player, BulletManager } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
+import { sprites, drawSprite } from './sprites.js';
 
 export { W, H, STATE };
 
@@ -103,6 +104,7 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;   // keep pixel art crisp
     this.input = new InputManager(canvas);
     this.state = STATE.TITLE;
     this.starfield = new Starfield();
@@ -196,6 +198,10 @@ export class Game {
 
   updatePlaying(dt) {
     this.player.update(dt, this.input, this.bullets);
+    const p = this.player;
+    if (p.alive && p.charging && p.chargeTime > 0.15) {
+      this.fx.chargeSuck(p.x + 26, p.y, p.chargeRatio);
+    }
     this.bullets.update(dt);
     const prevPhase = this.enemies.phase;
     this.enemies.update(dt, this.player.alive ? this.player : null);
@@ -322,6 +328,11 @@ export class Game {
   }
 
   renderTitle(ctx) {
+    // hero ship bobbing above the logo
+    drawSprite(ctx, sprites.player, W / 2, H / 2 - 150 + Math.sin(this.time * 2) * 6, { scale: 1.5 });
+    const fl = sprites.flames[Math.floor(this.time * 18) % sprites.flames.length];
+    drawSprite(ctx, fl, W / 2 - 42, H / 2 - 150 + Math.sin(this.time * 2) * 6, { scale: 1.5 });
+
     ctx.textAlign = 'center';
     ctx.fillStyle = '#8fd0ff';
     ctx.font = 'bold 72px monospace';
@@ -414,15 +425,7 @@ export class Game {
 
     // remaining lives as small ship icons
     for (let i = 0; i < this.lives; i++) {
-      const x = 22 + i * 28;
-      const y = 50;
-      ctx.fillStyle = '#c8d6ea';
-      ctx.beginPath();
-      ctx.moveTo(x + 9, y);
-      ctx.lineTo(x - 7, y - 5);
-      ctx.lineTo(x - 7, y + 5);
-      ctx.closePath();
-      ctx.fill();
+      drawSprite(ctx, sprites.player, 28 + i * 30, 50, { scale: 0.5 });
     }
 
     // charge gauge
@@ -454,14 +457,16 @@ function fitCanvas(canvas) {
 function boot() {
   const canvas = document.getElementById('game');
   const game = new Game(canvas);
+  window.__game = game;       // debug / test handle
 
   fitCanvas(canvas);
   window.addEventListener('resize', () => fitCanvas(canvas));
 
   let last = performance.now();
   function frame(now) {
-    // Clamp dt so a backgrounded tab doesn't teleport everything.
-    const dt = Math.min((now - last) / 1000, 1 / 20);
+    // Clamp dt: a backgrounded tab must not teleport everything, and the
+    // first rAF timestamp can predate boot's performance.now() (negative dt).
+    const dt = Math.max(Math.min((now - last) / 1000, 1 / 20), 0);
     last = now;
     game.update(dt);
     game.render();

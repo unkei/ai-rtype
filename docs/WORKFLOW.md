@@ -46,5 +46,5 @@ git pull origin main
 ## コーディング規約
 
 - Vanilla JS（ES modules）+ Canvas 2D。ビルド工程・外部依存を導入しない
-- 画像・音声アセットは使わない（描画はプリミティブ、音は Web Audio で合成）
+- 外部の画像・音声アセットファイルは使わない（ドット絵はコード埋め込みのピクセルデータから `js/sprites.js` で生成、音は Web Audio で合成）
 - 入力は必ず `js/input.js` の InputManager 経由で読む（直接 addEventListener しない）

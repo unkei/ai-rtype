@@ -1,5 +1,6 @@
 // Enemies, wave scripting, and enemy bullets.
 import { W, H } from './config.js';
+import { sprites, drawSprite } from './sprites.js';
 
 const LOOP_T = 26;            // wave script length in seconds; repeats harder
 
@@ -42,17 +43,8 @@ export class Straight extends Enemy {
   }
 
   render(ctx) {
-    ctx.fillStyle = '#ff6a6a';
-    ctx.strokeStyle = '#8a2020';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(this.x, this.y, 13, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#ffd0d0';
-    ctx.beginPath();
-    ctx.arc(this.x - 4, this.y - 2, 3.5, 0, Math.PI * 2);
-    ctx.fill();
+    // window light pulses
+    drawSprite(ctx, sprites.straight[Math.floor(this.t * 6) % 2], this.x, this.y);
   }
 }
 
@@ -74,27 +66,8 @@ export class Sine extends Enemy {
   }
 
   render(ctx) {
-    ctx.fillStyle = '#6aff8a';
-    ctx.strokeStyle = '#1f7a35';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // fins
-    ctx.fillStyle = '#2fae52';
-    ctx.beginPath();
-    ctx.moveTo(this.x + 4, this.y - 10);
-    ctx.lineTo(this.x + 14, this.y - 16);
-    ctx.lineTo(this.x + 10, this.y - 4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(this.x + 4, this.y + 10);
-    ctx.lineTo(this.x + 14, this.y + 16);
-    ctx.lineTo(this.x + 10, this.y + 4);
-    ctx.closePath();
-    ctx.fill();
+    // fins flap as it swims
+    drawSprite(ctx, sprites.sine[Math.floor(this.t * 8) % 2], this.x, this.y);
   }
 }
 
@@ -134,22 +107,8 @@ export class Dart extends Enemy {
 
   render(ctx) {
     const blink = this.phase === 'aim' && Math.floor(this.t * 12) % 2 === 0;
-    ctx.fillStyle = blink ? '#ffffff' : '#ffb050';
-    ctx.strokeStyle = '#a05a10';
-    ctx.lineWidth = 1.5;
     const a = Math.atan2(this.vy, this.vx || -1);
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(a);
-    ctx.beginPath();
-    ctx.moveTo(14, 0);
-    ctx.lineTo(-10, -8);
-    ctx.lineTo(-5, 0);
-    ctx.lineTo(-10, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawSprite(ctx, blink ? sprites.dartWhite : sprites.dart, this.x, this.y, { rot: a });
   }
 }
 
@@ -181,26 +140,16 @@ export class Turret extends Enemy {
 
   render(ctx) {
     const dir = this.top ? 1 : -1;
-    ctx.fillStyle = '#9aa7bd';
-    ctx.strokeStyle = '#4a566e';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 13, this.top ? 0 : Math.PI, this.top ? Math.PI : 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // barrel
+    // barrel behind the dome
     ctx.strokeStyle = '#cdd6e6';
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
-    ctx.lineTo(this.x - 10, this.y + 10 * dir);
+    ctx.lineTo(this.x - 10, this.y + 12 * dir);
     ctx.stroke();
-    // eye
-    ctx.fillStyle = '#ff4040';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y + 4 * dir, 3, 0, Math.PI * 2);
-    ctx.fill();
+    // dome with blinking eye
+    const blink = Math.floor(this.t * 3) % 2;
+    drawSprite(ctx, sprites.turret[blink], this.x, this.y, { flipY: !this.top });
   }
 }
 
@@ -261,20 +210,10 @@ export class Boss extends Enemy {
     const { x, y } = this;
     ctx.save();
 
-    // hull
-    ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#5d4a7a';
-    ctx.strokeStyle = '#b59ae0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x - 34, y);
-    ctx.lineTo(x - 6, y - 44);
-    ctx.lineTo(x + 44, y - 30);
-    ctx.lineTo(x + 56, y);
-    ctx.lineTo(x + 44, y + 30);
-    ctx.lineTo(x - 6, y + 44);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    // hull sprite breathes slowly; flashes white when hit
+    const img = this.hitFlash > 0 ? sprites.bossWhite : sprites.boss;
+    const breathe = 1 + Math.sin(this.t * 2.2) * 0.025;
+    drawSprite(ctx, img, x + 8, y, { scale: breathe });
 
     // rotating shield arcs
     ctx.strokeStyle = 'rgba(181,154,224,0.55)';
