@@ -2,6 +2,8 @@
 import { W, H, STATE } from './config.js';
 import { InputManager } from './input.js';
 import { Player, BulletManager } from './player.js';
+import { EnemyManager } from './enemies.js';
+import { FX } from './fx.js';
 
 export { W, H, STATE };
 
@@ -109,8 +111,11 @@ export class Game {
 
     this.player = new Player();
     this.bullets = new BulletManager();
+    this.enemies = new EnemyManager();
+    this.fx = new FX();
     this.score = 0;
     this.lives = 3;
+    this.respawnTimer = 0;
   }
 
   setState(s) {
@@ -121,8 +126,11 @@ export class Game {
   startGame() {
     this.player = new Player();
     this.bullets = new BulletManager();
+    this.enemies = new EnemyManager();
+    this.fx = new FX();
     this.score = 0;
     this.lives = 3;
+    this.respawnTimer = 0;
     this.setState(STATE.PLAYING);
   }
 
@@ -149,9 +157,84 @@ export class Game {
   updatePlaying(dt) {
     this.player.update(dt, this.input, this.bullets);
     this.bullets.update(dt);
+    this.enemies.update(dt, this.player.alive ? this.player : null);
+    this.fx.update(dt);
+    this.checkCollisions();
+
+    if (!this.player.alive) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0) {
+        if (this.lives > 0) {
+          this.player.respawn();
+        } else {
+          this.setState(STATE.GAMEOVER);
+        }
+      }
+    }
+  }
+
+  checkCollisions() {
+    // player bullets vs enemies
+    for (const b of this.bullets.list) {
+      if (b.dead) continue;
+      for (const e of this.enemies.enemies) {
+        if (e.dead) continue;
+        const cx = Math.max(b.x - b.w / 2, Math.min(e.x, b.x + b.w / 2));
+        const cy = Math.max(b.y - b.h / 2, Math.min(e.y, b.y + b.h / 2));
+        if ((e.x - cx) ** 2 + (e.y - cy) ** 2 > e.radius ** 2) continue;
+
+        e.hp -= b.damage;
+        if (b.kind === 'shot') {
+          b.dead = true;
+          this.fx.hit(b.x + b.w / 2, b.y);
+        } else if (--b.pierce < 0) {
+          b.dead = true;
+        }
+        if (e.hp <= 0) {
+          e.dead = true;
+          this.score += e.score;
+          this.fx.explosion(e.x, e.y, { color: '#ffb060' });
+        }
+        if (b.dead) break;
+      }
+    }
+
+    // enemies & enemy bullets vs player
+    const p = this.player;
+    if (!p.alive || p.invuln > 0) return;
+    for (const e of this.enemies.enemies) {
+      if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
+        e.hp -= 2;
+        if (e.hp <= 0) {
+          e.dead = true;
+          this.fx.explosion(e.x, e.y, { color: '#ffb060' });
+        }
+        this.killPlayer();
+        return;
+      }
+    }
+    for (const b of this.enemies.bullets) {
+      if (!b.dead && Math.hypot(b.x - p.x, b.y - p.y) < b.r + p.radius) {
+        b.dead = true;
+        this.killPlayer();
+        return;
+      }
+    }
+  }
+
+  killPlayer() {
+    const p = this.player;
+    this.fx.explosion(p.x, p.y, { color: '#7df9ff', count: 40, speed: 300, size: 5 });
+    p.alive = false;
+    this.lives--;
+    this.respawnTimer = 1.6;
   }
 
   updateGameover(dt) {
+    // let the battlefield wind down behind the message
+    this.enemies.spawningEnabled = false;
+    this.enemies.update(dt, null);
+    this.fx.update(dt);
     // brief lockout so a held button doesn't skip the screen instantly
     if (this.stateTime > 1 && (this.input.firePressed || this.input.startPressed)) {
       this.setState(STATE.TITLE);
@@ -194,11 +277,15 @@ export class Game {
 
   renderPlaying(ctx) {
     this.bullets.render(ctx);
+    this.enemies.render(ctx);
     this.player.render(ctx);
+    this.fx.render(ctx);
     this.renderHud(ctx);
   }
 
   renderGameover(ctx) {
+    this.enemies.render(ctx);
+    this.fx.render(ctx);
     this.renderHud(ctx);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff6060';
