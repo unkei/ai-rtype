@@ -736,24 +736,137 @@ class ScorePopup {
   }
 }
 
-// ===== ParticleSystem stub =====
+// ===== ParticleSystem =====
 class ParticleSystem {
   constructor() { this.particles = []; }
-  spawnExplosion(_x, _y, _color) {}
-  update(_dt) {}
-  render(_ctx) {}
+
+  spawnExplosion(x, y, color) {
+    const count = 12 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 180;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.6 + Math.random() * 0.5,
+        maxLife: 0,
+        size: 2 + Math.random() * 4,
+        color,
+      });
+      this.particles[this.particles.length - 1].maxLife = this.particles[this.particles.length - 1].life;
+    }
+    // Shockwave ring (stored as special type)
+    this.particles.push({ x, y, ring: true, life: 0.3, maxLife: 0.3, r: 0, color });
+  }
+
+  update(dt) {
+    for (const p of this.particles) {
+      p.life -= dt;
+      if (!p.ring) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
+      } else {
+        p.r += 120 * dt;
+      }
+    }
+    this.particles = this.particles.filter(p => p.life > 0);
+  }
+
+  render(ctx) {
+    ctx.save();
+    for (const p of this.particles) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      if (p.ring) {
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
-// ===== AudioManager stub =====
+// ===== AudioManager =====
 class AudioManager {
   _ac() {
-    if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!this._ctx) {
+      this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this._ctx.state === 'suspended') this._ctx.resume();
     return this._ctx;
   }
-  shoot() {}
-  chargeFire() {}
-  explode() {}
-  hit() {}
+
+  _tone(freq, type, duration, gainPeak, freqEnd) {
+    try {
+      const ac = this._ac();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ac.currentTime);
+      if (freqEnd !== undefined) osc.frequency.linearRampToValueAtTime(freqEnd, ac.currentTime + duration);
+      gain.gain.setValueAtTime(gainPeak, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration);
+      osc.start(ac.currentTime);
+      osc.stop(ac.currentTime + duration);
+    } catch (_) {}
+  }
+
+  _noise(duration, gainPeak) {
+    try {
+      const ac = this._ac();
+      const bufSize = ac.sampleRate * duration;
+      const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const gain = ac.createGain();
+      src.connect(gain);
+      gain.connect(ac.destination);
+      gain.gain.setValueAtTime(gainPeak, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration);
+      src.start(ac.currentTime);
+    } catch (_) {}
+  }
+
+  shoot() {
+    this._tone(880, 'square', 0.08, 0.12, 440);
+  }
+
+  chargeFire() {
+    this._tone(220, 'sawtooth', 0.25, 0.2, 880);
+    this._tone(330, 'square',   0.20, 0.1, 1320);
+  }
+
+  explode() {
+    this._noise(0.3, 0.25);
+    this._tone(120, 'sawtooth', 0.25, 0.15, 40);
+  }
+
+  hit() {
+    this._noise(0.15, 0.15);
+    this._tone(200, 'square', 0.12, 0.1, 80);
+  }
 }
 
 // ===== Game =====
@@ -843,6 +956,8 @@ class Game {
     this.player.reset();
     this.enemies.reset();
     this.bullets.playerBullets = []; this.bullets.enemyBullets = [];
+    this.popups = [];
+    this.audio._ac(); // unlock AudioContext on user gesture
     this.state = STATE.PLAYING;
   }
 
