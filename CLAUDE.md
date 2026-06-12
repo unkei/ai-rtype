@@ -7,6 +7,18 @@
 - 設計仕様: `docs/GAME_DESIGN.md`
 - タスク一覧と進捗: `docs/TASKS.md`
 
+## テスト(必ず実施すること)
+
+```bash
+npm test                  # Playwright E2E (Chromium + WebKit)
+npm run test:headed       # ブラウザ表示あり(デバッグ用)
+```
+
+- **PR作成前に `npm test` を必ず実行し、全テストがパスすることを確認する**
+- 新機能・バグ修正には対応するテストを `tests/game.spec.js` に追加する
+- `window.__game` が E2E テスト用の参照として公開されている
+- テストは Chromium(Chrome相当)と WebKit(Safari相当)の両方で実行される
+
 ## 開発ワークフロー(必ず従うこと)
 
 別セッションで作業を継続する場合も、以下のルールに従う:
@@ -14,7 +26,7 @@
 1. セッション開始時: `git checkout main && git pull` してから `docs/TASKS.md` を読み、最初の未完了タスクグループを特定する。
 2. 対応するフィーチャーブランチを作成する: `git checkout -b feature/xxx`(ブランチ名は TASKS.md に記載)。
 3. そのグループのタスクをすべて実装する。**`docs/TASKS.md` のチェックボックス更新も同じブランチで行う**(mainへの直接コミット禁止のため、進捗はPR経由でmainに反映する)。
-4. ローカルで動作確認する: `python3 -m http.server 8000` でサーブしてブラウザで確認。タッチ操作はDevToolsのデバイスエミュレーションで確認可。
+4. **`npm test` を実行し全テストがパスすることを確認する**。
 5. コミットし、プッシュし、PRを作成・マージする:
    - `gh pr create --title "feat: <短い説明>" --body ...`
    - `gh pr merge --squash --delete-branch`

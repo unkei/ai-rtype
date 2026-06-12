@@ -9,12 +9,11 @@ const STATE = Object.freeze({ TITLE: 'title', PLAYING: 'playing', PAUSED: 'pause
 // Unified keyboard / Gamepad / touch input. Query each frame via .isDown(action).
 class InputManager {
   constructor(canvas) {
-    this._keys = {};
-    this._prev = {};
+    this._keys = {};           // currently held keys
+    this._justPressed = new Set(); // keys pressed since last update() — cleared each frame
     // touch virtual stick state
     this._touch = { dx: 0, dy: 0, fire: false, activeStickId: null, activeFireId: null, stickOrigin: null };
-    this._touchTapped = false; // single-frame "any touch began" flag
-    this._prevTouchTapped = false;
+    this._touchTapped = false; // true for one frame when any touch begins
     this._canvas = canvas;
     this._setupKeyboard();
     this._setupTouch(canvas);
@@ -23,8 +22,9 @@ class InputManager {
 
   _setupKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (!e.repeat) this._justPressed.add(e.code);
       this._keys[e.code] = true;
-      e.preventDefault && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code) && e.preventDefault();
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this._keys[e.code] = false; });
   }
@@ -101,10 +101,9 @@ class InputManager {
     return null;
   }
 
-  // Call once per frame AFTER reading state
+  // Call once per frame AFTER reading state (clears single-frame flags)
   update() {
-    this._prev = { ...this._keys };
-    this._prevTouchTapped = this._touchTapped;
+    this._justPressed.clear();
     this._touchTapped = false;
   }
 
@@ -126,16 +125,16 @@ class InputManager {
     const gp = this._getGamepad();
     switch (action) {
       case 'pause': return !!(
-        (this._keys['Escape'] && !this._prev['Escape']) ||
-        (this._keys['KeyP']   && !this._prev['KeyP'])   ||
+        this._justPressed.has('Escape') ||
+        this._justPressed.has('KeyP')   ||
         (gp && gp.buttons[9]?.pressed)
       );
       case 'start': return !!(
-        (this._keys['KeyZ']   && !this._prev['KeyZ'])   ||
-        (this._keys['Space']  && !this._prev['Space'])  ||
-        (this._keys['Enter']  && !this._prev['Enter'])  ||
-        (gp && gp.buttons[0]?.pressed)                  ||
-        (this._touchTapped && !this._prevTouchTapped)
+        this._justPressed.has('KeyZ')   ||
+        this._justPressed.has('Space')  ||
+        this._justPressed.has('Enter')  ||
+        (gp && gp.buttons[0]?.pressed)  ||
+        this._touchTapped
       );
     }
     return false;
@@ -1038,5 +1037,7 @@ class Game {
 window.addEventListener('load', () => {
   const canvas = document.getElementById('game');
   if (!canvas) { console.error('canvas#game not found'); return; }
-  new Game(canvas).start();
+  const game = new Game(canvas);
+  window.__game = game; // exposed for E2E tests only
+  game.start();
 });

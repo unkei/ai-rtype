@@ -1,0 +1,29 @@
+{
+  "name": "ai-rtype",
+  "version": "1.0.0",
+  "description": "R-Typeライクな横スクロールシューティングゲーム。ブラウザで動作し、PC・スマホ・ゲームパッドに対応。",
+  "main": "index.html",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unkei/ai-rtype.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/unkei/ai-rtype/issues"
+  },
+  "homepage": "https://github.com/unkei/ai-rtype#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "serve": "^14.2.6"
+  }
+}
