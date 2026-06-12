@@ -5,24 +5,24 @@
 
 **上から順に、最初の未完了グループから着手すること。**
 
-## 1. feature/project-setup — プロジェクトセットアップ
+## 1. feature/project-setup — プロジェクトセットアップ ✅
 
-- [ ] CLAUDE.md(ワークフロールール)作成
-- [ ] docs/TASKS.md(本ファイル)作成
-- [ ] docs/GAME_DESIGN.md(設計仕様)作成
-- [ ] index.html シェル作成(canvas要素、game.js読み込み、モバイル向けviewport/CSS)
-- [ ] GitHub Pages 有効化(`gh api repos/unkei/ai-rtype/pages -X POST -f "source[branch]=main" -f "source[path]=/"`)
-- [ ] PR作成・マージ
+- [x] CLAUDE.md(ワークフロールール)作成
+- [x] docs/TASKS.md(本ファイル)作成
+- [x] docs/GAME_DESIGN.md(設計仕様)作成
+- [x] index.html シェル作成(canvas要素、game.js読み込み、モバイル向けviewport/CSS)
+- [x] GitHub Pages 有効化(`gh api repos/unkei/ai-rtype/pages -X POST -f "source[branch]=main" -f "source[path]=/"`)
+- [x] PR作成・マージ
 
-## 2. feature/core-engine — コアエンジン
+## 2. feature/core-engine — コアエンジン ✅
 
-- [ ] game.js 新規作成: Game クラス(requestAnimationFrame ループ、deltaTime、ステートマシン骨格)
-- [ ] canvas 初期化(960x540 内部解像度、CSSでレスポンシブスケール)
-- [ ] Background クラス: 3層パララックス星スクロール
-- [ ] ParticleSystem スタブ(update/render の空実装)
-- [ ] AudioManager スタブ
-- [ ] 動作確認: 星が流れる画面が表示される
-- [ ] PR作成・マージ
+- [x] game.js 新規作成: Game クラス(requestAnimationFrame ループ、deltaTime、ステートマシン骨格)
+- [x] canvas 初期化(960x540 内部解像度、CSSでレスポンシブスケール)
+- [x] Background クラス: 3層パララックス星スクロール
+- [x] ParticleSystem スタブ(update/render の空実装)
+- [x] AudioManager スタブ
+- [x] 動作確認: 星が流れる画面が表示される
+- [x] PR作成・マージ
 
 ## 3. feature/player — 自機と入力システム
 
