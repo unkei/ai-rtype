@@ -1,12 +1,18 @@
-// Visual effects: particle explosions and (later) score popups.
+// Visual effects: particle explosions and score popups.
 
 export class FX {
   constructor() {
     this.particles = [];
+    this.popups = [];
   }
 
   clear() {
     this.particles = [];
+    this.popups = [];
+  }
+
+  popup(x, y, text, color = '#ffe9a0') {
+    this.popups.push({ x, y, text, color, life: 0.9, maxLife: 0.9 });
   }
 
   explosion(x, y, { color = '#ffb060', count = 24, speed = 220, size = 4 } = {}) {
@@ -39,6 +45,12 @@ export class FX {
       p.vy *= 1 - 1.5 * dt;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
+
+    for (const u of this.popups) {
+      u.life -= dt;
+      u.y -= 42 * dt;
+    }
+    this.popups = this.popups.filter((u) => u.life > 0);
   }
 
   render(ctx) {
@@ -48,6 +60,13 @@ export class FX {
       ctx.fillStyle = p.color;
       const s = p.size * (0.4 + a * 0.6);
       ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    for (const u of this.popups) {
+      ctx.globalAlpha = Math.max(u.life / u.maxLife, 0);
+      ctx.fillStyle = u.color;
+      ctx.font = 'bold 15px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(u.text, u.x, u.y);
     }
     ctx.globalAlpha = 1;
   }
