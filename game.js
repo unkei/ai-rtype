@@ -466,6 +466,252 @@ class Background {
   }
 }
 
+// ===== Enemy base =====
+class Enemy {
+  constructor(x, y, hp, score) {
+    this.x = x; this.y = y;
+    this.hp = hp; this.score = score;
+    this.w = 20; this.h = 20;
+    this.active = true;
+    this.t = 0; // local time
+  }
+  update(dt, _bullets) { this.t += dt; }
+  takeDamage(dmg) {
+    this.hp -= dmg;
+    if (this.hp <= 0) this.active = false;
+  }
+  render(_ctx) {}
+}
+
+// Type A — straight horizontal flyer
+class EnemyA extends Enemy {
+  constructor(x, y) { super(x, y, 1, 100); this.vx = -160; }
+  update(dt, bullets) {
+    super.update(dt, bullets);
+    this.x += this.vx * dt;
+    if (this.x < -40) this.active = false;
+  }
+  render(ctx) {
+    const x = this.x, y = this.y;
+    ctx.save();
+    ctx.fillStyle = '#f84';
+    ctx.shadowColor = '#f84'; ctx.shadowBlur = 8;
+    // Arrow-like body pointing left
+    ctx.beginPath();
+    ctx.moveTo(x - 22, y);
+    ctx.lineTo(x + 10, y - 12);
+    ctx.lineTo(x + 4,  y);
+    ctx.lineTo(x + 10, y + 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// Type B — sine-wave flyer with occasional homing shot
+class EnemyB extends Enemy {
+  constructor(x, y) {
+    super(x, y, 2, 200);
+    this.vx = -130;
+    this.startY = y;
+    this.freq = 1.8 + Math.random() * 1.2;
+    this.amp  = 60 + Math.random() * 40;
+    this.shootTimer = 1.5 + Math.random();
+  }
+  update(dt, bullets) {
+    super.update(dt, bullets);
+    this.x += this.vx * dt;
+    this.y = this.startY + Math.sin(this.t * this.freq * Math.PI * 2) * this.amp;
+    if (this.x < -40) this.active = false;
+    this.shootTimer -= dt;
+    if (this.shootTimer <= 0) {
+      this.shootTimer = 2.5 + Math.random();
+      // aim toward player (bullets object carries reference added by EnemyManager)
+      const ang = Math.atan2(this._targetY - this.y, this._targetX - this.x);
+      bullets.addEnemyBullet(this.x - 10, this.y, Math.cos(ang) * 160, Math.sin(ang) * 160);
+    }
+  }
+  render(ctx) {
+    const x = this.x, y = this.y;
+    ctx.save();
+    ctx.fillStyle = '#c4f';
+    ctx.shadowColor = '#c4f'; ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 18, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Engine glow
+    ctx.fillStyle = '#f8f';
+    ctx.beginPath();
+    ctx.ellipse(x + 14, y, 6, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// Type C — formation unit (spawned in groups)
+class EnemyC extends Enemy {
+  constructor(x, y, angle, radius, centerX, centerY) {
+    super(x, y, 1, 150);
+    this.angle   = angle;
+    this.radius  = radius;
+    this.centerX = centerX;
+    this.centerY = centerY;
+    this.rotSpeed = 1.4;
+    this.drift    = -80; // formation drifts left
+  }
+  update(dt, _bullets) {
+    super.update(dt, _bullets);
+    this.angle += this.rotSpeed * dt;
+    this.centerX += this.drift * dt;
+    this.x = this.centerX + Math.cos(this.angle) * this.radius;
+    this.y = this.centerY + Math.sin(this.angle) * this.radius;
+    if (this.centerX < -80) this.active = false;
+  }
+  render(ctx) {
+    const x = this.x, y = this.y;
+    ctx.save();
+    ctx.fillStyle = '#4f8';
+    ctx.shadowColor = '#4f8'; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const r = i % 2 === 0 ? 12 : 6;
+      i === 0 ? ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
+              : ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// ===== EnemyManager =====
+class EnemyManager {
+  constructor(bullets) {
+    this.bullets  = bullets;
+    this.enemies  = [];
+    this.waveTime = 0;
+    this.playerX  = GAME_W / 4;
+    this.playerY  = GAME_H / 2;
+    // Wave script: [time, type, ...args]
+    this._script = this._buildScript();
+    this._scriptIdx = 0;
+  }
+
+  _buildScript() {
+    const s = [];
+    // Pattern repeats every ~60s, gradually increasing
+    for (let loop = 0; loop < 10; loop++) {
+      const base = loop * 62;
+      const diff = 1 + loop * 0.15;
+      // TypeA bursts
+      for (let i = 0; i < 5 + loop; i++) s.push([base + i * 1.4,   'A', GAME_W + 30, 80  + Math.random() * (GAME_H - 160)]);
+      s.push([base + 10, 'A', GAME_W + 30, GAME_H * 0.3]);
+      s.push([base + 11, 'A', GAME_W + 30, GAME_H * 0.7]);
+      // TypeB
+      for (let i = 0; i < 3 + Math.floor(loop / 2); i++) s.push([base + 16 + i * 3, 'B', GAME_W + 30, 100 + Math.random() * (GAME_H - 200)]);
+      // TypeC formations
+      s.push([base + 30, 'C', GAME_W * 0.75, GAME_H * 0.3, 5]);
+      s.push([base + 42, 'C', GAME_W * 0.75, GAME_H * 0.7, 5]);
+      if (loop > 1) s.push([base + 52, 'C', GAME_W * 0.75, GAME_H * 0.5, 7]);
+    }
+    s.sort((a, b) => a[0] - b[0]);
+    return s;
+  }
+
+  reset() {
+    this.enemies = []; this.waveTime = 0; this._scriptIdx = 0;
+  }
+
+  update(dt, playerX, playerY) {
+    this.waveTime += dt;
+    this.playerX = playerX; this.playerY = playerY;
+
+    // Spawn from script
+    while (this._scriptIdx < this._script.length && this._script[this._scriptIdx][0] <= this.waveTime) {
+      const entry = this._script[this._scriptIdx++];
+      this._spawn(entry);
+    }
+
+    for (const e of this.enemies) {
+      e._targetX = this.playerX;
+      e._targetY = this.playerY;
+      e.update(dt, this.bullets);
+    }
+    this.enemies = this.enemies.filter(e => e.active);
+  }
+
+  _spawn(entry) {
+    const [, type, ...args] = entry;
+    if (type === 'A') {
+      this.enemies.push(new EnemyA(args[0], args[1]));
+    } else if (type === 'B') {
+      this.enemies.push(new EnemyB(args[0], args[1]));
+    } else if (type === 'C') {
+      // args: centerX, centerY, count
+      const [cx, cy, count] = args;
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2;
+        this.enemies.push(new EnemyC(cx, cy, angle, 40, cx, cy));
+      }
+    }
+  }
+
+  checkPlayerCollision(player) {
+    if (!player.alive || player.invTimer > 0) return false;
+    for (const e of this.enemies) {
+      const dx = e.x - player.x, dy = e.y - player.y;
+      if (Math.sqrt(dx * dx + dy * dy) < player.hitR + 14) return true;
+    }
+    return false;
+  }
+
+  checkBulletCollisions(playerBullets, particles, audio, onScore) {
+    for (const b of playerBullets) {
+      if (!b.active) continue;
+      for (const e of this.enemies) {
+        if (!e.active) continue;
+        const dx = b.x - e.x, dy = b.y - e.y;
+        const hitR = b.beam ? (b.h / 2 + 14) : 16;
+        if (Math.abs(dx) < (b.beam ? b.w / 2 : 20) && Math.abs(dy) < hitR) {
+          const dmg = b.beam ? Math.ceil(1 + b.w / 30) : 1;
+          const wasDead = e.hp <= dmg;
+          e.takeDamage(dmg);
+          if (!b.beam) b.active = false;
+          if (wasDead) {
+            particles.spawnExplosion(e.x, e.y, '#f84');
+            audio.explode();
+            onScore(e.score);
+          }
+        }
+      }
+    }
+  }
+
+  checkEnemyBulletCollision(player, particles, audio) {
+    for (const b of this.bullets.enemyBullets) {
+      if (!b.active) continue;
+      const dx = b.x - player.x, dy = b.y - player.y;
+      if (Math.sqrt(dx * dx + dy * dy) < player.hitR + 5) {
+        b.active = false;
+        if (player.hit()) {
+          particles.spawnExplosion(player.x, player.y, '#4df');
+          audio.hit();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  render(ctx) {
+    for (const e of this.enemies) e.render(ctx);
+  }
+}
+
 // ===== ParticleSystem stub =====
 class ParticleSystem {
   constructor() { this.particles = []; }
@@ -499,6 +745,7 @@ class Game {
     this.input    = new InputManager(canvas);
     this.bullets  = new BulletManager();
     this.player   = new Player(this.bullets, this.audio);
+    this.enemies  = new EnemyManager(this.bullets);
     this.hud      = new HUD();
 
     this.score     = 0;
@@ -539,12 +786,31 @@ class Game {
 
     // Playing
     this.player.update(dt, this.input);
+    this.enemies.update(dt, this.player.x, this.player.y);
     this.bullets.update(dt);
+
+    // Collisions: player bullets vs enemies
+    this.enemies.checkBulletCollisions(
+      this.bullets.playerBullets, this.particles, this.audio,
+      (pts) => { this.score += pts; if (this.score > this.highScore) { this.highScore = this.score; localStorage.setItem('ai-rtype.hi', this.highScore); } }
+    );
+
+    // Enemy/enemy-bullet vs player
+    const hitByBullet = this.enemies.checkEnemyBulletCollision(this.player, this.particles, this.audio);
+    const hitByBody   = !hitByBullet && this.enemies.checkPlayerCollision(this.player) && this.player.hit();
+    if (hitByBullet || hitByBody) {
+      this.lives--;
+      if (this.lives <= 0) {
+        if (this.score > this.highScore) { this.highScore = this.score; localStorage.setItem('ai-rtype.hi', this.highScore); }
+        this.state = STATE.GAMEOVER;
+      }
+    }
   }
 
   _startGame() {
     this.score = 0; this.lives = 3;
     this.player.reset();
+    this.enemies.reset();
     this.bullets.playerBullets = []; this.bullets.enemyBullets = [];
     this.state = STATE.PLAYING;
   }
@@ -556,6 +822,7 @@ class Game {
     this.bg.render(ctx);
     if (this.state !== STATE.TITLE) {
       this.bullets.render(ctx);
+      this.enemies.render(ctx);
       this.player.render(ctx);
       this.particles.render(ctx);
       this.input.renderVirtualControls(ctx);
