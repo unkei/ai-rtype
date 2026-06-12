@@ -13,6 +13,8 @@ class InputManager {
     this._prev = {};
     // touch virtual stick state
     this._touch = { dx: 0, dy: 0, fire: false, activeStickId: null, activeFireId: null, stickOrigin: null };
+    this._touchTapped = false; // single-frame "any touch began" flag
+    this._prevTouchTapped = false;
     this._canvas = canvas;
     this._setupKeyboard();
     this._setupTouch(canvas);
@@ -31,6 +33,7 @@ class InputManager {
     const isTouchDevice = () => navigator.maxTouchPoints > 0;
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
+      this._touchTapped = true;
       if (!this._showVirtual) this._showVirtual = true;
       for (const t of e.changedTouches) {
         const rect = canvas.getBoundingClientRect();
@@ -98,9 +101,11 @@ class InputManager {
     return null;
   }
 
-  // Call once per frame before reading state
+  // Call once per frame AFTER reading state
   update() {
     this._prev = { ...this._keys };
+    this._prevTouchTapped = this._touchTapped;
+    this._touchTapped = false;
   }
 
   isDown(action) {
@@ -129,7 +134,8 @@ class InputManager {
         (this._keys['KeyZ']   && !this._prev['KeyZ'])   ||
         (this._keys['Space']  && !this._prev['Space'])  ||
         (this._keys['Enter']  && !this._prev['Enter'])  ||
-        (gp && gp.buttons[0]?.pressed)
+        (gp && gp.buttons[0]?.pressed)                  ||
+        (this._touchTapped && !this._prevTouchTapped)
       );
     }
     return false;
@@ -899,9 +905,9 @@ class Game {
     if (this.lastTime === null) this.lastTime = time;
     const dt = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
-    this.input.update();
     this._update(dt);
     this._render();
+    this.input.update(); // snapshot _prev AFTER reading input this frame
     requestAnimationFrame((t) => this._frame(t));
   }
 
