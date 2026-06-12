@@ -16,7 +16,7 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 1 | プロジェクトセットアップ: docs（本計画・ワークフロー）、CLAUDE.md、index.html シェル、.nojekyll | `feature/fable-setup` | ✅ 完了 |
 | 2 | コアエンジン: ゲームループ、ステート管理（TITLE/PLAYING/GAMEOVER）、パララックス星空＋地形背景、画面スケーリング | `feature/fable-core` | ✅ 完了 |
 | 3 | 入力と自機: InputManager（キーボード/ゲームパッド/タッチ）、自機移動、通常弾、チャージビーム、HUD | `feature/fable-player` | ✅ 完了 |
-| 4 | 敵とウェーブ: 敵4種（直進/サイン波/急襲/砲台）、ウェーブスクリプト、衝突判定、爆発パーティクル | `feature/fable-enemies` | ⬜ 未着手 |
+| 4 | 敵とウェーブ: 敵4種（直進/サイン波/急襲/砲台）、ウェーブスクリプト、衝突判定、爆発パーティクル | `feature/fable-enemies` | ✅ 完了 |
 | 5 | ボスとゲームフロー: ボス戦、スコアポップアップ、ハイスコア（localStorage）、ゲームオーバー/リスタート、周回難易度 | `feature/fable-boss` | ⬜ 未着手 |
 | 6 | 仕上げと公開: Web Audio 効果音、タッチUI調整、README、GitHub Pages 配信元切替＋動作確認 | `feature/fable-polish` | ⬜ 未着手 |
 
