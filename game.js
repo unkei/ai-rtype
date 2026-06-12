@@ -684,7 +684,7 @@ class EnemyManager {
           if (wasDead) {
             particles.spawnExplosion(e.x, e.y, '#f84');
             audio.explode();
-            onScore(e.score);
+            onScore(e.score, e.x, e.y);
           }
         }
       }
@@ -709,6 +709,30 @@ class EnemyManager {
 
   render(ctx) {
     for (const e of this.enemies) e.render(ctx);
+  }
+}
+
+// ===== ScorePopup =====
+class ScorePopup {
+  constructor(x, y, value) {
+    this.x = x; this.y = y;
+    this.vy = -60;
+    this.life = 1.0;
+    this.text = '+' + value;
+  }
+  update(dt) {
+    this.y += this.vy * dt;
+    this.life -= dt * 1.2;
+  }
+  render(ctx) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, this.life);
+    ctx.fillStyle = '#ff8';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.restore();
   }
 }
 
@@ -747,6 +771,7 @@ class Game {
     this.player   = new Player(this.bullets, this.audio);
     this.enemies  = new EnemyManager(this.bullets);
     this.hud      = new HUD();
+    this.popups   = [];
 
     this.score     = 0;
     this.lives     = 3;
@@ -770,6 +795,8 @@ class Game {
   _update(dt) {
     this.bg.update(dt);
     this.particles.update(dt);
+    for (const p of this.popups) p.update(dt);
+    this.popups = this.popups.filter(p => p.life > 0);
 
     if (this.state === STATE.TITLE) {
       if (this.input.justPressed('start')) this._startGame();
@@ -792,7 +819,11 @@ class Game {
     // Collisions: player bullets vs enemies
     this.enemies.checkBulletCollisions(
       this.bullets.playerBullets, this.particles, this.audio,
-      (pts) => { this.score += pts; if (this.score > this.highScore) { this.highScore = this.score; localStorage.setItem('ai-rtype.hi', this.highScore); } }
+      (pts, ex, ey) => {
+        this.score += pts;
+        this.popups.push(new ScorePopup(ex, ey, pts));
+        if (this.score > this.highScore) { this.highScore = this.score; localStorage.setItem('ai-rtype.hi', this.highScore); }
+      }
     );
 
     // Enemy/enemy-bullet vs player
@@ -825,6 +856,7 @@ class Game {
       this.enemies.render(ctx);
       this.player.render(ctx);
       this.particles.render(ctx);
+      for (const p of this.popups) p.render(ctx);
       this.input.renderVirtualControls(ctx);
       this.hud.render(ctx, this.score, this.lives, this.highScore, this.player.charge, this.state === STATE.PAUSED);
     }
@@ -849,6 +881,11 @@ class Game {
     ctx.font = '14px monospace';
     ctx.fillText('Move: Arrow / WASD / Stick / Touch    Fire: Z / Space / A', GAME_W / 2, GAME_H / 2 + 50);
     ctx.fillText('Hold fire to charge — release for BEAM', GAME_W / 2, GAME_H / 2 + 74);
+    if (this.highScore > 0) {
+      ctx.fillStyle = '#ff8';
+      ctx.font = '16px monospace';
+      ctx.fillText(`BEST  ${String(this.highScore).padStart(8, '0')}`, GAME_W / 2, GAME_H / 2 + 108);
+    }
     ctx.restore();
   }
 
@@ -860,11 +897,18 @@ class Game {
     ctx.fillStyle = '#f44';
     ctx.font = 'bold 56px monospace';
     ctx.shadowColor = '#f44'; ctx.shadowBlur = 20;
-    ctx.fillText('GAME OVER', GAME_W / 2, GAME_H / 2 - 40);
+    ctx.fillText('GAME OVER', GAME_W / 2, GAME_H / 2 - 60);
     ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ff8';
+    ctx.font = '24px monospace';
+    ctx.fillText(`SCORE  ${String(this.score).padStart(8, '0')}`, GAME_W / 2, GAME_H / 2 - 10);
+    const isNew = this.score >= this.highScore && this.score > 0;
+    ctx.fillStyle = isNew ? '#ff0' : '#aaa';
+    ctx.font = '18px monospace';
+    ctx.fillText(`BEST   ${String(this.highScore).padStart(8, '0')}${isNew ? '  ★NEW!' : ''}`, GAME_W / 2, GAME_H / 2 + 22);
     ctx.fillStyle = '#fff';
     ctx.font = '20px monospace';
-    ctx.fillText('PRESS Z / SPACE / A TO CONTINUE', GAME_W / 2, GAME_H / 2 + 20);
+    ctx.fillText('PRESS Z / SPACE / A TO CONTINUE', GAME_W / 2, GAME_H / 2 + 62);
     ctx.restore();
   }
 }
