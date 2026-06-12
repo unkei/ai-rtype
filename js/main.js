@@ -1,12 +1,9 @@
 // AI R-TYPE — entry point: game loop, state machine, parallax background
-export const W = 960;
-export const H = 540;
+import { W, H, STATE } from './config.js';
+import { InputManager } from './input.js';
+import { Player, BulletManager } from './player.js';
 
-export const STATE = {
-  TITLE: 'title',
-  PLAYING: 'playing',
-  GAMEOVER: 'gameover',
-};
+export { W, H, STATE };
 
 // ---------------------------------------------------------------- background
 
@@ -103,14 +100,36 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.input = new InputManager(canvas);
     this.state = STATE.TITLE;
     this.starfield = new Starfield();
     this.terrain = new Terrain();
     this.time = 0;            // global clock for blink effects
+    this.stateTime = 0;       // time since last state change
+
+    this.player = new Player();
+    this.bullets = new BulletManager();
+    this.score = 0;
+    this.lives = 3;
+  }
+
+  setState(s) {
+    this.state = s;
+    this.stateTime = 0;
+  }
+
+  startGame() {
+    this.player = new Player();
+    this.bullets = new BulletManager();
+    this.score = 0;
+    this.lives = 3;
+    this.setState(STATE.PLAYING);
   }
 
   update(dt) {
     this.time += dt;
+    this.stateTime += dt;
+    this.input.beginFrame();
     this.starfield.update(dt);
     this.terrain.update(dt);
 
@@ -121,10 +140,23 @@ export class Game {
     }
   }
 
-  // State hooks — fleshed out in later tasks.
-  updateTitle(dt) {}
-  updatePlaying(dt) {}
-  updateGameover(dt) {}
+  updateTitle(dt) {
+    if (this.input.firePressed || this.input.startPressed) {
+      this.startGame();
+    }
+  }
+
+  updatePlaying(dt) {
+    this.player.update(dt, this.input, this.bullets);
+    this.bullets.update(dt);
+  }
+
+  updateGameover(dt) {
+    // brief lockout so a held button doesn't skip the screen instantly
+    if (this.stateTime > 1 && (this.input.firePressed || this.input.startPressed)) {
+      this.setState(STATE.TITLE);
+    }
+  }
 
   render() {
     const ctx = this.ctx;
@@ -138,6 +170,8 @@ export class Game {
       case STATE.PLAYING:  this.renderPlaying(ctx); break;
       case STATE.GAMEOVER: this.renderGameover(ctx); break;
     }
+
+    this.input.renderTouchUI(ctx);
   }
 
   renderTitle(ctx) {
@@ -153,15 +187,57 @@ export class Game {
       ctx.font = '24px monospace';
       ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 70);
     }
+    ctx.font = '15px monospace';
+    ctx.fillStyle = '#46618a';
+    ctx.fillText('MOVE: ARROWS / WASD / STICK · FIRE: Z X SPACE (HOLD = CHARGE)', W / 2, H - 70);
   }
 
-  renderPlaying(ctx) {}
+  renderPlaying(ctx) {
+    this.bullets.render(ctx);
+    this.player.render(ctx);
+    this.renderHud(ctx);
+  }
 
   renderGameover(ctx) {
+    this.renderHud(ctx);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff6060';
     ctx.font = 'bold 56px monospace';
     ctx.fillText('GAME OVER', W / 2, H / 2);
+  }
+
+  renderHud(ctx) {
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillStyle = '#dce8ff';
+    ctx.fillText(`SCORE ${String(this.score).padStart(7, '0')}`, 16, 32);
+
+    // remaining lives as small ship icons
+    for (let i = 0; i < this.lives; i++) {
+      const x = 22 + i * 28;
+      const y = 50;
+      ctx.fillStyle = '#c8d6ea';
+      ctx.beginPath();
+      ctx.moveTo(x + 9, y);
+      ctx.lineTo(x - 7, y - 5);
+      ctx.lineTo(x - 7, y + 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // charge gauge
+    const p = this.player;
+    if (p.charging && p.chargeTime > 0.1) {
+      const w = 180;
+      const x = W / 2 - w / 2;
+      const y = H - 26;
+      ctx.fillStyle = 'rgba(20,30,50,0.8)';
+      ctx.fillRect(x - 2, y - 2, w + 4, 12);
+      ctx.fillStyle = p.chargeLevel >= 3 ? '#ffd76e' : '#7df9ff';
+      ctx.fillRect(x, y, w * p.chargeRatio, 8);
+      ctx.strokeStyle = '#5a7aa0';
+      ctx.strokeRect(x - 2, y - 2, w + 4, 12);
+    }
   }
 }
 
