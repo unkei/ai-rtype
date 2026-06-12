@@ -26,4 +26,4 @@ for f in js/*.js; do node --check "$f"; done   # 構文チェック
 ```
 
 - 開発計画と進捗: [docs/PLAN.md](docs/PLAN.md)
-- ブランチ/PR運用規約: [docs/WORKFLOW.md](docs/WORKFLOW.md)（ベースブランチは `fable_ver`、main 不可侵）
+- ブランチ/PR運用規約: [docs/WORKFLOW.md](docs/WORKFLOW.md)（ベースブランチは `main`、直接pushせずPR経由）
