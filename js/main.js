@@ -4,6 +4,7 @@ import { InputManager } from './input.js';
 import { Player, BulletManager } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { FX } from './fx.js';
+import { audio } from './audio.js';
 
 export { W, H, STATE };
 
@@ -148,7 +149,10 @@ export class Game {
   setState(s) {
     this.state = s;
     this.stateTime = 0;
-    if (s === STATE.GAMEOVER) this._saveHiScore();
+    if (s === STATE.GAMEOVER) {
+      this._saveHiScore();
+      audio.gameover();
+    }
   }
 
   startGame() {
@@ -161,12 +165,15 @@ export class Game {
     this.respawnTimer = 0;
     this.newRecord = false;
     this.setState(STATE.PLAYING);
+    audio.start();
   }
 
   update(dt) {
     this.time += dt;
     this.stateTime += dt;
     this.input.beginFrame();
+    // Web Audio needs a user gesture before it can make sound
+    if (this.input.firePressed || this.input.startPressed) audio.unlock();
     this.starfield.update(dt);
     this.terrain.update(dt);
 
@@ -186,7 +193,9 @@ export class Game {
   updatePlaying(dt) {
     this.player.update(dt, this.input, this.bullets);
     this.bullets.update(dt);
+    const prevPhase = this.enemies.phase;
     this.enemies.update(dt, this.player.alive ? this.player : null);
+    if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
     this.fx.update(dt);
     this.checkCollisions();
 
@@ -217,6 +226,7 @@ export class Game {
         if (b.kind === 'shot') {
           b.dead = true;
           this.fx.hit(b.x + b.w / 2, b.y);
+          audio.hit();
         } else if (--b.pierce < 0) {
           b.dead = true;
         }
@@ -230,6 +240,7 @@ export class Game {
             speed: big ? 340 : 220,
             size: big ? 6 : 4,
           });
+          audio.explode(big);
         }
         if (b.dead) break;
       }
@@ -262,6 +273,7 @@ export class Game {
   killPlayer() {
     const p = this.player;
     this.fx.explosion(p.x, p.y, { color: '#7df9ff', count: 40, speed: 300, size: 5 });
+    audio.explode(true);
     p.alive = false;
     this.lives--;
     this.respawnTimer = 1.6;
