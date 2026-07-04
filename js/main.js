@@ -7,7 +7,7 @@ import { Player, BulletManager } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
-import { Render3D } from './render3d.js';
+import { Render3D, loadModels } from './render3d.js';
 
 export { W, H, STATE };
 
@@ -342,16 +342,34 @@ function fitCanvas(wrap) {
 
 // ---------------------------------------------------------------------- boot
 
-function boot() {
+async function boot() {
   const wrap = document.getElementById('wrap');
   const overlay = document.getElementById('game');
-  const game = new Game(overlay);
-  const r3d = new Render3D(document.getElementById('game3d'));
-  window.__game = game;      // debug/test hooks
-  window.__r3d = r3d;
-
   fitCanvas(wrap);
   window.addEventListener('resize', () => fitCanvas(wrap));
+
+  // 3D models load async — show a splash on the overlay meanwhile
+  const splash = overlay.getContext('2d');
+  splash.fillStyle = '#05070f';
+  splash.fillRect(0, 0, W, H);
+  splash.textAlign = 'center';
+  splash.fillStyle = '#8fd0ff';
+  splash.font = 'bold 28px monospace';
+  splash.fillText('LOADING...', W / 2, H / 2);
+  try {
+    await loadModels();
+  } catch (err) {
+    splash.fillStyle = '#ff6060';
+    splash.font = '18px monospace';
+    splash.fillText('FAILED TO LOAD 3D MODELS — RELOAD TO RETRY', W / 2, H / 2 + 40);
+    throw err;
+  }
+
+  const game = new Game(overlay);
+  const r3d = new Render3D(document.getElementById('game3d'));
+  r3d.initScenery();
+  window.__game = game;      // debug/test hooks
+  window.__r3d = r3d;
 
   let last = performance.now();
   function frame(now) {

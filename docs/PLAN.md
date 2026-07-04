@@ -20,7 +20,7 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 5 | ボスとゲームフロー: ボス戦、スコアポップアップ、ハイスコア（localStorage）、ゲームオーバー/リスタート、周回難易度 | `feature/fable-boss` | ✅ 完了 |
 | 6 | 仕上げと公開: Web Audio 効果音、タッチUI調整、README、GitHub Pages 配信元切替＋動作確認 | `feature/fable-polish` | ✅ 完了 |
 | 7 | 運用切替: main を通常運用ブランチ化（fable_ver を force push で反映済み）、docs のルール更新、Pages 配信元を main に変更 | `chore/main-workflow` | ✅ 完了 |
-| 8 | グラフィック3D化: Three.js（CDN importmap）+ UnrealBloom で全描画を 3D モデル化。HUD/テキストは透明 Canvas オーバーレイ。ロジックは 2D のまま | `feature/three-graphics` | ✅ 完了 |
+| 8 | グラフィック3D化: Three.js（CDN importmap）+ UnrealBloom で全描画を 3D モデル化（Kenney Space Kit の CC0 GLB）。惑星・岩石地形・漂流メテオの背景。HUD/テキストは透明 Canvas オーバーレイ。ロジックは 2D のまま | `feature/three-graphics` | ✅ 完了 |
 
 状態の凡例: ⬜ 未着手 / 🔄 作業中 / ✅ 完了
 **各PRで担当タスクの状態を必ず更新すること。**
@@ -29,8 +29,9 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 
 ```
 index.html         … WebGL canvas + HUD オーバーレイ canvas、Three.js の importmap
-js/main.js         … 起動、ゲームループ、ステート管理、HUD/テキスト描画（オーバーレイ）
-js/render3d.js     … Three.js ビュー層（3Dモデル、地形、星空、パーティクル、Bloom）
+js/main.js         … 起動（モデル読込待ち）、ゲームループ、ステート管理、HUD描画
+js/render3d.js     … Three.js ビュー層（GLBモデル、岩石地形、惑星、星空、パーティクル、Bloom）
+assets/models/     … Kenney Space Kit の GLB モデル（CC0、ライセンスファイル同梱）
 js/input.js        … InputManager（3入力系統を統合、エッジ検出）
 js/player.js       … 自機、弾、チャージビーム（ロジックのみ）
 js/enemies.js      … 敵各種、ウェーブ管理、ボス（ロジックのみ）

@@ -1,7 +1,9 @@
 // Render3D — Three.js view layer. Game logic stays in 2D logical space
-// (960×540, y-down, z=0 plane); this module mirrors it with 3D models,
-// lights, particles and bloom. Text/HUD lives on the 2D overlay canvas.
+// (960×540, y-down, z=0 plane); this module mirrors it with real 3D models
+// (Kenney Space Kit, CC0 — assets/models/), lights, particles and bloom.
+// Text/HUD lives on the 2D overlay canvas.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -18,22 +20,93 @@ const CAM_DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
 
 const MAX_PARTICLES = 512;
 
+// ------------------------------------------------------------------- models
+// len = target size in logical px, measured along `axis` after rotY is
+// applied. Ships face +Z in the source files; rotY turns them to +X
+// (player) or -X (enemies).
+
+// tint multiplies the source colors (keeps enemy types readable at a glance),
+// glow adds emissive so ships pop against the dark background
+const ROCK_TINT = 0x7a86a8;
+const MODELS = {
+  player:   { url: 'assets/models/craft_speederD.glb',  rotY:  Math.PI / 2, len: 68, glow: 0.22 },
+  straight: { url: 'assets/models/craft_speederA.glb',  rotY: -Math.PI / 2, len: 48, tint: 0xff7575, glow: 0.3 },
+  sine:     { url: 'assets/models/craft_speederB.glb',  rotY: -Math.PI / 2, len: 48, tint: 0x78ff95, glow: 0.3 },
+  dart:     { url: 'assets/models/craft_racer.glb',     rotY: -Math.PI / 2, len: 52, tint: 0xffc06a, glow: 0.3 },
+  turret:   { url: 'assets/models/turret_single.glb',   rotY: -Math.PI / 2, len: 46, glow: 0.15 },
+  boss:     { url: 'assets/models/craft_miner.glb',     rotY: -Math.PI / 2, len: 190, glow: 0.18 },
+  meteor:   { url: 'assets/models/meteor.glb',          axis: 'max', len: 1, tint: ROCK_TINT },
+  meteor2:  { url: 'assets/models/meteor_detailed.glb', axis: 'max', len: 1, tint: ROCK_TINT },
+  rockA:    { url: 'assets/models/rock_largeA.glb',     axis: 'max', len: 1, tint: ROCK_TINT },
+  rockB:    { url: 'assets/models/rock_largeB.glb',     axis: 'max', len: 1, tint: ROCK_TINT },
+  crystals: { url: 'assets/models/rock_crystals.glb',   axis: 'max', len: 1, tint: ROCK_TINT },
+};
+
+const PROTO = {};             // name → normalized THREE.Group prototype
+
+function normalize(gltf, { rotY = 0, len, axis = 'x' }) {
+  const inner = new THREE.Group();
+  gltf.scene.rotation.y = rotY;
+  inner.add(gltf.scene);
+
+  const box = new THREE.Box3().setFromObject(inner);
+  const size = box.getSize(new THREE.Vector3());
+  const measure = axis === 'max' ? Math.max(size.x, size.y, size.z) : size[axis];
+  inner.scale.setScalar(len / measure);
+
+  const box2 = new THREE.Box3().setFromObject(inner);
+  const center = box2.getCenter(new THREE.Vector3());
+  inner.position.sub(center);
+
+  const proto = new THREE.Group();
+  proto.add(inner);
+  proto.userData.half = box2.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  return proto;
+}
+
+export async function loadModels() {
+  const loader = new GLTFLoader();
+  await Promise.all(Object.entries(MODELS).map(async ([name, cfg]) => {
+    const gltf = await loader.loadAsync(cfg.url);
+    const proto = normalize(gltf, cfg);
+    // materials are freshly created per loadAsync, safe to mutate in place
+    const tint = cfg.tint !== undefined ? new THREE.Color(cfg.tint) : null;
+    const done = new Set();
+    proto.traverse((o) => {
+      if (!o.isMesh || done.has(o.material)) return;
+      done.add(o.material);
+      if (tint) o.material.color.multiply(tint);
+      if (cfg.glow && o.material.emissive) {
+        o.material.emissive.copy(o.material.color).multiplyScalar(cfg.glow);
+      }
+    });
+    PROTO[name] = proto;
+  }));
+}
+
+// clone a prototype; remember original materials so we can flash white
+function spawn(name) {
+  const g = PROTO[name].clone(true);
+  g.traverse((o) => {
+    if (o.isMesh) o.userData.origMat = o.material;
+  });
+  g.userData.half = PROTO[name].userData.half;
+  return g;
+}
+
+function setFlash(g, on) {
+  if (g.userData.flashOn === on) return;
+  g.userData.flashOn = on;
+  g.traverse((o) => {
+    if (o.isMesh) o.material = on ? MAT.flash : o.userData.origMat;
+  });
+}
+
 // ------------------------------------------------------- shared materials
 
 const MAT = {
-  playerHull: new THREE.MeshStandardMaterial({ color: 0xc8d6ea, flatShading: true, metalness: 0.7, roughness: 0.35 }),
-  playerWing: new THREE.MeshStandardMaterial({ color: 0x5a7aa0, flatShading: true, metalness: 0.6, roughness: 0.4 }),
-  canopy:     new THREE.MeshStandardMaterial({ color: 0x104060, emissive: 0x3fa9f5, emissiveIntensity: 1.6, roughness: 0.2 }),
   flame:      new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
   chargeOrb:  new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
-
-  straight:   new THREE.MeshStandardMaterial({ color: 0xff6a6a, flatShading: true, metalness: 0.4, roughness: 0.5, emissive: 0x8a2020, emissiveIntensity: 0.35 }),
-  sine:       new THREE.MeshStandardMaterial({ color: 0x6aff8a, flatShading: true, metalness: 0.4, roughness: 0.5, emissive: 0x1f7a35, emissiveIntensity: 0.35 }),
-  sineFin:    new THREE.MeshStandardMaterial({ color: 0x2fae52, flatShading: true, metalness: 0.4, roughness: 0.5 }),
-  dart:       new THREE.MeshStandardMaterial({ color: 0xffb050, flatShading: true, metalness: 0.5, roughness: 0.45, emissive: 0xa05a10, emissiveIntensity: 0.4 }),
-  turret:     new THREE.MeshStandardMaterial({ color: 0x9aa7bd, flatShading: true, metalness: 0.8, roughness: 0.35 }),
-  turretEye:  new THREE.MeshBasicMaterial({ color: 0xff4040 }),
-  bossHull:   new THREE.MeshStandardMaterial({ color: 0x5d4a7a, flatShading: true, metalness: 0.6, roughness: 0.4, emissive: 0x2a1a45, emissiveIntensity: 0.5 }),
   bossArc:    new THREE.MeshBasicMaterial({ color: 0xb59ae0, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }),
   bossCore:   new THREE.MeshBasicMaterial({ color: 0xff5078 }),
   flash:      new THREE.MeshBasicMaterial({ color: 0xffffff }),
@@ -44,129 +117,58 @@ const MAT = {
   ebullet:    new THREE.MeshBasicMaterial({ color: 0xff80c0 }),
   ebulletCore: new THREE.MeshBasicMaterial({ color: 0xffffff }),
 
-  terrain:    new THREE.MeshStandardMaterial({ color: 0x33476e, flatShading: true, metalness: 0.3, roughness: 0.7 }),
-  terrainBack: new THREE.MeshStandardMaterial({ color: 0x1a2438, flatShading: true, metalness: 0.3, roughness: 0.85 }),
+  planet:     new THREE.MeshStandardMaterial({ color: 0x24455f, roughness: 0.95, metalness: 0.05, fog: false }),
+  planetGlow: new THREE.MeshBasicMaterial({ color: 0x4f9ec4, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide, fog: false }),
+  wall:       new THREE.MeshStandardMaterial({ color: 0x141b2c, roughness: 0.95, metalness: 0.1 }),
 };
 
-// all geometries are shared — entity meshes come and go constantly
 const GEO = {
   box: new THREE.BoxGeometry(1, 1, 1),
   sphere: new THREE.SphereGeometry(1, 12, 8),
-  spike: new THREE.ConeGeometry(1, 1, 4),
-  playerBody: new THREE.ConeGeometry(8, 40, 6),
-  flame: new THREE.ConeGeometry(4.5, 18, 8),
-  straight: new THREE.IcosahedronGeometry(13, 0),
-  fin: new THREE.ConeGeometry(4, 12, 4),
-  dart: new THREE.ConeGeometry(8, 26, 4),
-  dome: new THREE.SphereGeometry(13, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-  barrel: new THREE.CylinderGeometry(2.5, 2.5, 16, 8),
-  bossHull: new THREE.DodecahedronGeometry(42, 0),
-  bossArc: new THREE.TorusGeometry(52, 2.2, 8, 24, 1.1),
+  flame: new THREE.ConeGeometry(6, 26, 8),
+  planet: new THREE.SphereGeometry(1, 48, 32),
 };
 
 // ------------------------------------------------------------ model builders
 
 function buildPlayer() {
-  const g = new THREE.Group();
-
-  const body = new THREE.Mesh(GEO.playerBody, MAT.playerHull);
-  body.rotation.z = -Math.PI / 2;
-  g.add(body);
-
-  const canopy = new THREE.Mesh(GEO.sphere, MAT.canopy);
-  canopy.scale.set(6, 3.5, 4);
-  canopy.position.set(4, 4, 0);
-  g.add(canopy);
-
-  const wings = new THREE.Mesh(GEO.box, MAT.playerWing);
-  wings.scale.set(18, 2.5, 34);
-  wings.position.set(-8, -2, 0);
-  g.add(wings);
-
-  const tail = new THREE.Mesh(GEO.box, MAT.playerWing);
-  tail.scale.set(9, 11, 2.5);
-  tail.position.set(-13, 6, 0);
-  g.add(tail);
+  const g = spawn('player');
+  const half = g.userData.half;
 
   const flame = new THREE.Mesh(GEO.flame, MAT.flame);
   flame.rotation.z = Math.PI / 2;
-  flame.position.set(-27, 0, 0);
+  flame.position.set(-half.x - 10, 0, 0);
   g.add(flame);
   g.userData.flame = flame;
 
   const orb = new THREE.Mesh(GEO.sphere, MAT.chargeOrb);
-  orb.position.set(26, 0, 0);
+  orb.position.set(half.x + 8, 0, 0);
   orb.visible = false;
   g.add(orb);
   g.userData.chargeOrb = orb;
 
   const light = new THREE.PointLight(0x7df9ff, 900, 260);
-  light.position.set(6, 0, 30);
+  light.position.set(6, 10, 40);
   g.add(light);
 
   return g;
 }
 
-function buildStraight() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(GEO.straight, MAT.straight);
-  body.scale.set(1.15, 0.7, 0.9);
-  g.add(body);
-  g.userData.spin = body;
-  return g;
-}
-
-function buildSine() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(GEO.sphere, MAT.sine);
-  body.scale.setScalar(11);
-  g.add(body);
-  for (const dir of [1, -1]) {
-    const fin = new THREE.Mesh(GEO.fin, MAT.sineFin);
-    fin.position.set(6, 13 * dir, 0);
-    fin.rotation.z = dir > 0 ? 0.5 : Math.PI - 0.5;
-    g.add(fin);
-  }
-  return g;
-}
-
-function buildDart() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(GEO.dart, MAT.dart);
-  body.rotation.z = -Math.PI / 2;
-  g.add(body);
-  g.userData.body = body;
-  return g;
-}
-
 function buildTurret(top) {
-  const g = new THREE.Group();
-  const dome = new THREE.Mesh(GEO.dome, MAT.turret);
-  g.add(dome);
-  const barrel = new THREE.Mesh(GEO.barrel, MAT.turret);
-  barrel.position.set(-7, 8, 0);
-  barrel.rotation.z = 0.7;
-  g.add(barrel);
-  const eye = new THREE.Mesh(GEO.sphere, MAT.turretEye);
-  eye.scale.setScalar(3.2);
-  eye.position.set(0, 6, 0);
-  g.add(eye);
-  // logical-top turrets hang downward in world space
+  const g = spawn('turret');
+  // logical-top turrets hang from the ceiling
   if (top) g.rotation.z = Math.PI;
   return g;
 }
 
 function buildBoss() {
-  const g = new THREE.Group();
-
-  const hull = new THREE.Mesh(GEO.bossHull, MAT.bossHull);
-  hull.scale.set(1.3, 1, 1);
-  g.add(hull);
+  const g = spawn('boss');
+  const hull = g.children[0];
   g.userData.hull = hull;
 
   const arcs = new THREE.Group();
   for (let i = 0; i < 3; i++) {
-    const arc = new THREE.Mesh(GEO.bossArc, MAT.bossArc);
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(115, 3.5, 8, 32, 1.1), MAT.bossArc);
     arc.rotation.z = (i * Math.PI * 2) / 3;
     arcs.add(arc);
   }
@@ -174,43 +176,42 @@ function buildBoss() {
   g.userData.arcs = arcs;
 
   const core = new THREE.Mesh(GEO.sphere, MAT.bossCore);
-  core.scale.setScalar(14);
-  core.position.set(-2, 0, 30);
+  core.scale.setScalar(20);
+  core.position.set(-55, 0, 26);
   g.add(core);
   g.userData.core = core;
 
-  const light = new THREE.PointLight(0xff5078, 2200, 420);
-  light.position.set(0, 0, 60);
+  const light = new THREE.PointLight(0xff5078, 2600, 520);
+  light.position.set(0, 0, 80);
   g.add(light);
 
   return g;
 }
 
 function buildBullet(b) {
+  const g = new THREE.Group();
   if (b.kind === 'beam') {
-    const g = new THREE.Group();
     const core = new THREE.Mesh(GEO.box, MAT.beam);
-    core.scale.set(b.w, b.h, b.h);
+    core.scale.set(b.w, b.h * 1.5, b.h * 1.5);
     g.add(core);
     const aura = new THREE.Mesh(GEO.box, MAT.beamAura);
-    aura.scale.set(b.w + 14, b.h + 8, b.h + 8);
+    aura.scale.set(b.w + 16, b.h * 1.5 + 10, b.h * 1.5 + 10);
     g.add(aura);
-    return g;
+  } else {
+    const core = new THREE.Mesh(GEO.box, MAT.shot);
+    core.scale.set(18, 5, 5);
+    g.add(core);
   }
-  const g = new THREE.Group();
-  const core = new THREE.Mesh(GEO.box, MAT.shot);
-  core.scale.set(14, 4, 4);
-  g.add(core);
   return g;
 }
 
 function buildEnemyBullet(b) {
   const g = new THREE.Group();
   const glow = new THREE.Mesh(GEO.sphere, MAT.ebullet);
-  glow.scale.setScalar(b.r + 1.5);
+  glow.scale.setScalar(b.r + 2.5);
   g.add(glow);
   const core = new THREE.Mesh(GEO.sphere, MAT.ebulletCore);
-  core.scale.setScalar(b.r * 0.5);
+  core.scale.setScalar(b.r * 0.6);
   g.add(core);
   return g;
 }
@@ -225,9 +226,9 @@ export class Render3D {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05070f);
-    this.scene.fog = new THREE.Fog(0x05070f, 750, 1400);
+    this.scene.fog = new THREE.Fog(0x05070f, 750, 1500);
 
-    this.camera = new THREE.PerspectiveCamera(FOV, W / H, 1, 2000);
+    this.camera = new THREE.PerspectiveCamera(FOV, W / H, 1, 3000);
     this.camera.position.set(0, 0, CAM_DIST);
 
     this.scene.add(new THREE.AmbientLight(0x8090b0, 1.3));
@@ -246,8 +247,14 @@ export class Render3D {
     this._live = new Set();
 
     this._initStars();
-    this._initTerrain();
     this._initParticles();
+  }
+
+  // call after loadModels(); scenery needs the rock prototypes
+  initScenery() {
+    this._initPlanet();
+    this._initTerrain();
+    this._initDrifters();
   }
 
   // ----------------------------------------------------------- starfield
@@ -296,58 +303,117 @@ export class Render3D {
     }
   }
 
-  // ------------------------------------------------------------- terrain
+  // ------------------------------------------------------------- scenery
+
+  _initPlanet() {
+    const planet = new THREE.Mesh(GEO.planet, MAT.planet);
+    planet.scale.setScalar(270);
+    planet.position.set(400, 270, -800);
+    this.scene.add(planet);
+    this._planet = planet;
+
+    const glow = new THREE.Mesh(GEO.planet, MAT.planetGlow);
+    glow.scale.setScalar(286);
+    glow.position.copy(planet.position);
+    this.scene.add(glow);
+  }
+
+  _rockName() {
+    const r = Math.random();
+    if (r < 0.30) return 'meteor';
+    if (r < 0.55) return 'meteor2';
+    if (r < 0.75) return 'rockA';
+    if (r < 0.92) return 'rockB';
+    return 'crystals';
+  }
 
   _initTerrain() {
-    // crystalline spikes scrolling along top and bottom edges;
-    // front row matches the old 2D terrain scroll, back row adds parallax
-    this._spikes = [];
+    // rows of CC0 rock/meteor models scrolling along both edges;
+    // front row rides the gameplay scroll, back row adds parallax
+    this._terrain = [];
     const rows = [
-      { z: -10, speed: 120, seg: 48, hMin: 16, hMax: 48, mat: MAT.terrain },
-      { z: -110, speed: 60, seg: 64, hMin: 24, hMax: 64, mat: MAT.terrainBack },
+      { z: -14, speed: 120, seg: 72, hMin: 30, hMax: 58 },
+      { z: -130, speed: 60, seg: 100, hMin: 55, hMax: 115 },
     ];
     for (const row of rows) {
       for (const top of [true, false]) {
         const n = Math.ceil(W / row.seg) + 3;
-        const mesh = new THREE.InstancedMesh(GEO.spike, row.mat, n);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.scene.add(mesh);
-        const items = Array.from({ length: n }, (_, i) => ({
-          x: -W / 2 + (i - 1) * row.seg,
-          h: row.hMin + Math.random() * (row.hMax - row.hMin),
-        }));
-        this._spikes.push({ mesh, items, top, ...row });
+        const items = [];
+        for (let i = 0; i < n; i++) {
+          const rock = spawn(this._rockName());
+          rock.rotation.y = Math.random() * Math.PI * 2;
+          this.scene.add(rock);
+          items.push({
+            rock,
+            x: -W / 2 + (i - 1) * row.seg + Math.random() * row.seg * 0.4,
+            h: row.hMin + Math.random() * (row.hMax - row.hMin),
+          });
+        }
+        this._terrain.push({ items, top, ...row });
       }
     }
-    this._dummy = new THREE.Object3D();
 
-    // solid wall strips along both edges
+    // solid wall strips hiding the rock bases
     for (const top of [true, false]) {
-      const wall = new THREE.Mesh(GEO.box, MAT.terrainBack);
-      wall.scale.set(W + 200, 14, 160);
-      wall.position.set(0, (top ? 1 : -1) * (H / 2 + 3), -60);
-      this.scene.add(wall);
+      for (const z of [-14, -130]) {
+        const wall = new THREE.Mesh(GEO.box, MAT.wall);
+        wall.scale.set(W + 260, 16, 170);
+        wall.position.set(0, (top ? 1 : -1) * (H / 2 + 4), z - 40);
+        this.scene.add(wall);
+      }
     }
   }
 
   _scrollTerrain(dt) {
-    for (const s of this._spikes) {
-      const edge = s.top ? H / 2 : -H / 2;
-      const dir = s.top ? -1 : 1;
-      for (let i = 0; i < s.items.length; i++) {
-        const it = s.items[i];
-        it.x -= s.speed * dt;
-        if (it.x < -W / 2 - s.seg * 1.5) {
-          it.x += s.items.length * s.seg;
-          it.h = s.hMin + Math.random() * (s.hMax - s.hMin);
+    for (const row of this._terrain) {
+      const edge = row.top ? H / 2 : -H / 2;
+      const dir = row.top ? -1 : 1;
+      for (const it of row.items) {
+        it.x -= row.speed * dt;
+        if (it.x < -W / 2 - row.seg * 1.5) {
+          it.x += row.items.length * row.seg;
+          it.h = row.hMin + Math.random() * (row.hMax - row.hMin);
+          it.rock.rotation.y = Math.random() * Math.PI * 2;
         }
-        this._dummy.position.set(it.x, edge + dir * it.h / 2, s.z);
-        this._dummy.scale.set(s.seg * 0.62, dir * it.h, s.seg * 0.62);
-        this._dummy.rotation.set(0, (i * 0.7) % Math.PI, 0);
-        this._dummy.updateMatrix();
-        s.mesh.setMatrixAt(i, this._dummy.matrix);
+        // embed the rock base into the edge wall
+        it.rock.position.set(it.x, edge + dir * it.h * 0.3, row.z);
+        it.rock.scale.setScalar(it.h);
       }
-      s.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  _initDrifters() {
+    // loose meteors tumbling by at mid depth, pure decoration
+    this._drifters = [];
+    for (let i = 0; i < 6; i++) {
+      const rock = spawn(Math.random() < 0.5 ? 'meteor' : 'meteor2');
+      const s = 18 + Math.random() * 34;
+      rock.scale.setScalar(s);
+      rock.position.set(
+        (Math.random() - 0.5) * W * 1.4,
+        (Math.random() - 0.5) * H * 0.8,
+        -180 - Math.random() * 160,
+      );
+      this.scene.add(rock);
+      this._drifters.push({
+        rock,
+        speed: 18 + Math.random() * 30,
+        spinX: (Math.random() - 0.5) * 0.8,
+        spinY: (Math.random() - 0.5) * 0.8,
+      });
+    }
+  }
+
+  _scrollDrifters(dt) {
+    for (const d of this._drifters) {
+      const r = d.rock;
+      r.position.x -= d.speed * dt;
+      r.rotation.x += d.spinX * dt;
+      r.rotation.y += d.spinY * dt;
+      if (r.position.x < -W * 0.8) {
+        r.position.x = W * 0.8;
+        r.position.y = (Math.random() - 0.5) * H * 0.8;
+      }
     }
   }
 
@@ -361,7 +427,7 @@ export class Render3D {
     geo.setAttribute('color', new THREE.BufferAttribute(this._pCol, 3));
     geo.setDrawRange(0, 0);
     const mat = new THREE.PointsMaterial({
-      size: 6, sizeAttenuation: true, vertexColors: true,
+      size: 7, sizeAttenuation: true, vertexColors: true,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
     });
     this._particles = new THREE.Points(geo, mat);
@@ -428,7 +494,7 @@ export class Render3D {
     const orb = o.userData.chargeOrb;
     if (p.charging && p.chargeTime > 0.15) {
       orb.visible = true;
-      const r = 4 + p.chargeRatio * 12 + Math.sin(p.time * 30) * 2;
+      const r = 5 + p.chargeRatio * 14 + Math.sin(p.time * 30) * 2;
       orb.scale.setScalar(r);
     } else {
       orb.visible = false;
@@ -441,24 +507,24 @@ export class Render3D {
       let o;
       if (e instanceof Boss) {
         o = this._obj(e, buildBoss);
-        o.userData.hull.rotation.x = e.t * 0.4;
-        o.userData.hull.material = e.hitFlash > 0 ? MAT.flash : MAT.bossHull;
+        o.userData.hull.rotation.x = Math.sin(e.t * 0.7) * 0.15;
+        setFlash(o.userData.hull, e.hitFlash > 0);
         o.userData.arcs.rotation.z = -e.t * 1.6;
         const pulse = 1 + Math.sin(e.t * 6) * 0.18;
-        o.userData.core.scale.setScalar(14 * pulse);
+        o.userData.core.scale.setScalar(20 * pulse);
         o.userData.core.material = e.hitFlash > 0 ? MAT.flash : MAT.bossCore;
       } else if (e instanceof Straight) {
-        o = this._obj(e, buildStraight);
-        o.userData.spin.rotation.y = e.t * 2.4;
+        o = this._obj(e, () => spawn('straight'));
+        o.rotation.z = Math.sin(e.t * 3) * 0.12;
       } else if (e instanceof Sine) {
-        o = this._obj(e, buildSine);
-        o.rotation.z = Math.sin(e.t * 4) * 0.3;
+        o = this._obj(e, () => spawn('sine'));
+        // bank along the sine path
+        o.rotation.x = Math.cos(e.t * e.freq) * 0.5;
       } else if (e instanceof Dart) {
-        o = this._obj(e, buildDart);
+        o = this._obj(e, () => spawn('dart'));
         // face travel direction (logical y-down → negate for world)
         o.rotation.z = -Math.atan2(e.vy, e.vx || -1) + Math.PI;
-        o.userData.body.material = (e.phase === 'aim' && Math.floor(e.t * 12) % 2 === 0) ? MAT.flash : MAT.dart;
-        o.userData.body.rotation.x = e.t * 6;
+        setFlash(o, e.phase === 'aim' && Math.floor(e.t * 12) % 2 === 0);
       } else if (e instanceof Turret) {
         o = this._obj(e, () => buildTurret(e.top));
       } else {
@@ -488,6 +554,8 @@ export class Render3D {
     this.time += dt;
     this._scrollStars(dt);
     this._scrollTerrain(dt);
+    this._scrollDrifters(dt);
+    this._planet.rotation.y += dt * 0.02;
 
     this._live.clear();
     if (game.state !== STATE.TITLE) {

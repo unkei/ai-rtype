@@ -11,7 +11,7 @@ class Enemy {
     this.y = y;
     this.rank = rank;         // difficulty multiplier, grows per loop
     this.hp = 1;
-    this.radius = 12;
+    this.radius = 16;         // matches the larger 3D models
     this.score = 100;
     this.dead = false;
     this.t = 0;
@@ -101,7 +101,7 @@ export class Turret extends Enemy {
     this.top = top;
     this.hp = 3;
     this.score = 300;
-    this.radius = 14;
+    this.radius = 19;
     this.fireT = 1.2 / rank;
   }
 
@@ -127,7 +127,7 @@ export class Boss extends Enemy {
     super(W + 120, H / 2, rank);
     this.hp = Math.round(55 * rank);
     this.maxHp = this.hp;
-    this.radius = 30;
+    this.radius = 42;
     this.score = 5000;
     this.phase = 'enter';
     this.attackT = 1.2;
@@ -143,7 +143,7 @@ export class Boss extends Enemy {
       return;
     }
 
-    this.y = H / 2 + Math.sin(this.t * 0.8) * (H / 2 - 130);
+    this.y = H / 2 + Math.sin(this.t * 0.8) * (H / 2 - 155);
     this.attackT -= dt;
     if (this.attackT > 0 || !player) return;
 
