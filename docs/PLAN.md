@@ -20,6 +20,7 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 5 | ボスとゲームフロー: ボス戦、スコアポップアップ、ハイスコア（localStorage）、ゲームオーバー/リスタート、周回難易度 | `feature/fable-boss` | ✅ 完了 |
 | 6 | 仕上げと公開: Web Audio 効果音、タッチUI調整、README、GitHub Pages 配信元切替＋動作確認 | `feature/fable-polish` | ✅ 完了 |
 | 7 | 運用切替: main を通常運用ブランチ化（fable_ver を force push で反映済み）、docs のルール更新、Pages 配信元を main に変更 | `chore/main-workflow` | ✅ 完了 |
+| 8 | グラフィック3D化: Three.js（CDN importmap）+ UnrealBloom で全描画を 3D モデル化。HUD/テキストは透明 Canvas オーバーレイ。ロジックは 2D のまま | `feature/three-graphics` | ✅ 完了 |
 
 状態の凡例: ⬜ 未着手 / 🔄 作業中 / ✅ 完了
 **各PRで担当タスクの状態を必ず更新すること。**
@@ -27,18 +28,24 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 ## アーキテクチャ
 
 ```
-index.html        … canvas とエントリ <script type="module">
-js/main.js        … 起動、ゲームループ、ステート管理、背景描画
-js/input.js       … InputManager（3入力系統を統合、エッジ検出）
-js/player.js      … 自機、弾、チャージビーム
-js/enemies.js     … 敵各種、ウェーブ管理、ボス
-js/fx.js          … パーティクル、スコアポップアップ
-js/audio.js       … Web Audio による効果音（外部アセットなし）
+index.html         … WebGL canvas + HUD オーバーレイ canvas、Three.js の importmap
+js/main.js         … 起動、ゲームループ、ステート管理、HUD/テキスト描画（オーバーレイ）
+js/render3d.js     … Three.js ビュー層（3Dモデル、地形、星空、パーティクル、Bloom）
+js/input.js        … InputManager（3入力系統を統合、エッジ検出）
+js/player.js       … 自機、弾、チャージビーム（ロジックのみ）
+js/enemies.js      … 敵各種、ウェーブ管理、ボス（ロジックのみ）
+js/fx.js           … パーティクル状態、スコアポップアップ
+js/audio.js        … Web Audio による効果音（外部アセットなし）
+test-autoplay.html … ヘッドレス動作確認用の自動プレイページ
 ```
 
 - 論理解像度 960×540。ウィンドウに合わせレターボックスでスケール
 - 入力エッジ検出はフレーム先頭の `input.beginFrame()` で確定し、
   フレーム中はどこから読んでも同じ値（タイトル画面の取りこぼしバグ対策）
+- **描画は 2.5D 構成**: ゲームロジック・当たり判定は従来どおり 960×540 の 2D 座標系。
+  `render3d.js` が毎フレーム、エンティティ→メッシュを同期して z=0 平面に描く
+  （エンティティは描画コードを持たない）。Three.js は CDN importmap 経由
+  （ビルド工程なしは維持）。テキスト HUD は上に重ねた透明 Canvas 2D
 
 ## 公開
 

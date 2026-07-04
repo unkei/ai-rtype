@@ -1,6 +1,6 @@
 # AI R-TYPE — Fable Edition
 
-R-Type ライクな横スクロールシューティング。Vanilla JS + Canvas 2D、ビルド工程なし・外部アセットなし（音は Web Audio で合成）。
+R-Type ライクな横スクロールシューティング。Vanilla JS + Three.js（CDN importmap 経由）による 3D グラフィック、ビルド工程なし・外部アセットなし（モデルはプリミティブ合成、音は Web Audio で合成）。ゲームロジックは 2D、描画は WebGL + Bloom の 2.5D 構成。
 
 **▶ プレイ: https://unkei.github.io/ai-rtype/**
 
@@ -23,6 +23,15 @@ R-Type ライクな横スクロールシューティング。Vanilla JS + Canvas
 python3 -m http.server 8080   # ES modules のため要HTTPサーバ
 # → http://localhost:8080
 for f in js/*.js; do node --check "$f"; done   # 構文チェック
+```
+
+ヘッドレスでの動作確認（自動プレイでスクリーンショット）:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --window-size=960,540 --hide-scrollbars \
+  --virtual-time-budget=7600 --screenshot=/tmp/rtype.png \
+  "http://localhost:8080/test-autoplay.html"
 ```
 
 - 開発計画と進捗: [docs/PLAN.md](docs/PLAN.md)

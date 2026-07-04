@@ -53,24 +53,6 @@ export class BulletManager {
   clear() {
     this.list = [];
   }
-
-  render(ctx) {
-    for (const b of this.list) {
-      if (b.kind === 'shot') {
-        ctx.fillStyle = '#7df9ff';
-        ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
-      } else {
-        const g = ctx.createLinearGradient(b.x - b.w / 2, 0, b.x + b.w / 2, 0);
-        g.addColorStop(0, 'rgba(125,249,255,0)');
-        g.addColorStop(0.5, '#bfffff');
-        g.addColorStop(1, '#ffffff');
-        ctx.fillStyle = g;
-        ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
-        ctx.fillStyle = 'rgba(125,249,255,0.35)';
-        ctx.fillRect(b.x - b.w / 2 - 6, b.y - b.h / 2 - 3, b.w + 12, b.h + 6);
-      }
-    }
-  }
 }
 
 export class Player {
@@ -136,55 +118,5 @@ export class Player {
       this.charging = false;
       this.chargeTime = 0;
     }
-  }
-
-  render(ctx) {
-    if (!this.alive) return;
-    // blink while invulnerable
-    if (this.invuln > 0 && Math.floor(this.time * 12) % 2 === 0) return;
-
-    const { x, y } = this;
-    ctx.save();
-
-    // engine flame
-    const flame = 10 + Math.sin(this.time * 40) * 4;
-    ctx.fillStyle = '#ff9a3c';
-    ctx.beginPath();
-    ctx.moveTo(x - 16, y - 3);
-    ctx.lineTo(x - 16 - flame, y);
-    ctx.lineTo(x - 16, y + 3);
-    ctx.closePath();
-    ctx.fill();
-
-    // hull
-    ctx.fillStyle = '#c8d6ea';
-    ctx.strokeStyle = '#5a7aa0';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(x + 22, y);
-    ctx.lineTo(x + 4, y - 9);
-    ctx.lineTo(x - 16, y - 7);
-    ctx.lineTo(x - 16, y + 7);
-    ctx.lineTo(x + 4, y + 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // cockpit
-    ctx.fillStyle = '#3fa9f5';
-    ctx.beginPath();
-    ctx.ellipse(x + 4, y - 2, 6, 3.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // charge glow at the nose
-    if (this.charging && this.chargeTime > 0.15) {
-      const r = 4 + this.chargeRatio * 12 + Math.sin(this.time * 30) * 2;
-      ctx.fillStyle = `rgba(125,249,255,${0.4 + this.chargeRatio * 0.5})`;
-      ctx.beginPath();
-      ctx.arc(x + 26, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
   }
 }

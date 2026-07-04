@@ -16,17 +16,36 @@
       -webkit-user-select: none;
       user-select: none;
     }
-    #game {
+    #wrap {
       position: absolute;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      image-rendering: pixelated;
     }
+    #wrap canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+    }
+    /* overlay (HUD/text/touch) sits above the WebGL canvas and takes input */
+    #game { z-index: 1; }
   </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-  <canvas id="game" width="960" height="540"></canvas>
+  <div id="wrap">
+    <canvas id="game3d" width="960" height="540"></canvas>
+    <canvas id="game" width="960" height="540"></canvas>
+  </div>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

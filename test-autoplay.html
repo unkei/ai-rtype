@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>AI R-TYPE test</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+    #wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    #wrap canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+    #game { z-index: 1; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game3d" width="960" height="540"></canvas>
+    <canvas id="game" width="960" height="540"></canvas>
+  </div>
+  <script type="module" src="js/main.js"></script>
+  <script>
+    // auto-play driver. Headless --screenshot barely runs rAF, so we step the
+    // game loop ourselves from a timer (virtual time runs timers thousands of
+    // times within the budget). The real waves/boss script plays out.
+    const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code }));
+    let steps = 0;
+    setInterval(() => {
+      const g = window.__game, r = window.__r3d;
+      if (!g || !r) return;
+      if (steps === 5) { key('keydown', 'Space'); }
+      if (steps === 8) { key('keyup', 'Space'); }
+      // tap fire every ~20 frames, wiggle vertically
+      if (steps > 20) {
+        if (steps % 20 === 0) key('keydown', 'Space');
+        if (steps % 20 === 6) key('keyup', 'Space');
+        if (steps % 120 === 10) key('keydown', steps % 240 < 120 ? 'ArrowUp' : 'ArrowDown');
+        if (steps % 120 === 70) { key('keyup', 'ArrowUp'); key('keyup', 'ArrowDown'); }
+        g.player.invuln = 999;   // stay alive for the tour
+      }
+      g.update(1 / 60);
+      r.update(1 / 60, g);
+      r.render();
+      steps++;
+      document.title = `state=${g.state} t=${g.time.toFixed(1)} en=${g.enemies.enemies.length} ph=${g.enemies.phase} sc=${g.score}`;
+    }, 4);
+  </script>
+</body>
+</html>

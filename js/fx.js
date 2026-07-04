@@ -53,14 +53,8 @@ export class FX {
     this.popups = this.popups.filter((u) => u.life > 0);
   }
 
-  render(ctx) {
-    for (const p of this.particles) {
-      const a = Math.max(p.life / p.maxLife, 0);
-      ctx.globalAlpha = a;
-      ctx.fillStyle = p.color;
-      const s = p.size * (0.4 + a * 0.6);
-      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
-    }
+  // Particles are drawn in 3D by Render3D; only text popups go on the overlay.
+  renderPopups(ctx) {
     for (const u of this.popups) {
       ctx.globalAlpha = Math.max(u.life / u.maxLife, 0);
       ctx.fillStyle = u.color;
