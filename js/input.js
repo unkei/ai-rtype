@@ -12,10 +12,12 @@ const KEYS_UP    = ['ArrowUp', 'KeyW'];
 const KEYS_DOWN  = ['ArrowDown', 'KeyS'];
 const KEYS_FIRE  = ['Space', 'KeyZ', 'KeyX', 'KeyJ'];
 const KEYS_START = ['Enter'];
+const KEYS_FORCE = ['KeyV'];
 
 const PAD_DEADZONE = 0.25;
 const STICK_RADIUS = 60;       // logical px for full deflection
 const STICK_ZONE = W * 0.45;   // touches left of this are the virtual stick
+const FORCE_BTN = { x: W - 110, y: H - 230, r: 44 };  // touch FORCE button
 
 export class InputManager {
   constructor(canvas) {
@@ -27,16 +29,19 @@ export class InputManager {
     this.fire = false;          // held
     this.firePressed = false;   // edge
     this.startPressed = false;  // edge
+    this.forcePressed = false;  // edge — option detach/recall
     this.touchActive = false;   // a touch ever happened → show touch UI
 
     // -- keyboard --
     this._keys = new Set();
     this._pendingFire = false;
     this._pendingStart = false;
+    this._pendingForce = false;
 
     // -- gamepad --
     this._padFirePrev = false;
     this._padStartPrev = false;
+    this._padForcePrev = false;
 
     // -- touch --
     this._stick = null;          // { id, ox, oy, dx, dy } in logical coords
@@ -57,13 +62,14 @@ export class InputManager {
 
   _onKeyDown(e) {
     if ([...KEYS_LEFT, ...KEYS_RIGHT, ...KEYS_UP, ...KEYS_DOWN,
-         ...KEYS_FIRE, ...KEYS_START].includes(e.code)) {
+         ...KEYS_FIRE, ...KEYS_START, ...KEYS_FORCE].includes(e.code)) {
       e.preventDefault();
     }
     if (e.repeat) return;
     this._keys.add(e.code);
     if (KEYS_FIRE.includes(e.code)) this._pendingFire = true;
     if (KEYS_START.includes(e.code)) this._pendingStart = true;
+    if (KEYS_FORCE.includes(e.code)) this._pendingForce = true;
   }
 
   _keyHeld(codes) {
@@ -85,7 +91,9 @@ export class InputManager {
     this.touchActive = true;
     for (const t of e.changedTouches) {
       const p = this._logical(t);
-      if (p.x < STICK_ZONE && !this._stick) {
+      if (Math.hypot(p.x - FORCE_BTN.x, p.y - FORCE_BTN.y) < FORCE_BTN.r) {
+        this._pendingForce = true;
+      } else if (p.x < STICK_ZONE && !this._stick) {
         this._stick = { id: t.identifier, ox: p.x, oy: p.y, dx: 0, dy: 0 };
       } else {
         this._fireTouches.add(t.identifier);
@@ -125,7 +133,8 @@ export class InputManager {
     if (!pad) {
       this._padFirePrev = false;
       this._padStartPrev = false;
-      return { x: 0, y: 0, fire: false, fireEdge: false, startEdge: false };
+      this._padForcePrev = false;
+      return { x: 0, y: 0, fire: false, fireEdge: false, startEdge: false, forceEdge: false };
     }
 
     let x = pad.axes[0] ?? 0;
@@ -143,7 +152,10 @@ export class InputManager {
     const startEdge = start && !this._padStartPrev;
     this._padFirePrev = fire;
     this._padStartPrev = start;
-    return { x, y, fire, fireEdge, startEdge };
+    const force = btn(4);
+    const forceEdge = force && !this._padForcePrev;
+    this._padForcePrev = force;
+    return { x, y, fire, fireEdge, startEdge, forceEdge };
   }
 
   // --------------------------------------------------------------- frame
@@ -173,8 +185,10 @@ export class InputManager {
     this.fire = this._keyHeld(KEYS_FIRE) || pad.fire || this._fireTouches.size > 0;
     this.firePressed = this._pendingFire || pad.fireEdge;
     this.startPressed = this._pendingStart || pad.startEdge;
+    this.forcePressed = this._pendingForce || (pad.forceEdge ?? false);
     this._pendingFire = false;
     this._pendingStart = false;
+    this._pendingForce = false;
   }
 
   // ------------------------------------------------------------ touch UI
@@ -209,6 +223,16 @@ export class InputManager {
     ctx.font = '16px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('FIRE', W - 110, H - 104);
+
+    // FORCE (option detach/recall) button
+    ctx.strokeStyle = '#b59ae0';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(FORCE_BTN.x, FORCE_BTN.y, 36, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#b59ae0';
+    ctx.font = '13px monospace';
+    ctx.fillText('FORCE', FORCE_BTN.x, FORCE_BTN.y + 5);
 
     ctx.restore();
   }
