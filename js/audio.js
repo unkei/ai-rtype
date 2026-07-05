@@ -91,6 +91,11 @@ class AudioSys {
     });
   }
 
+  pickupOption() {
+    this._tone({ freq: 660, freqEnd: 1320, dur: 0.18, type: 'sine', vol: 0.15 });
+    this._tone({ freq: 880, freqEnd: 1760, dur: 0.22, type: 'sine', vol: 0.08, delay: 0.06 });
+  }
+
   start() {
     const notes = [262, 392, 523];
     notes.forEach((f, i) => {

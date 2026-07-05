@@ -7,6 +7,7 @@ import { Player, BulletManager } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
+import { OptionManager } from './options.js';
 import { Render3D, loadModels } from './render3d.js';
 
 export { W, H, STATE };
@@ -26,6 +27,7 @@ export class Game {
     this.bullets = new BulletManager();
     this.enemies = new EnemyManager();
     this.fx = new FX();
+    this.options = new OptionManager();
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
@@ -72,6 +74,7 @@ export class Game {
     this.bullets = new BulletManager();
     this.enemies = new EnemyManager();
     this.fx = new FX();
+    this.options = new OptionManager();
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
@@ -106,6 +109,7 @@ export class Game {
     const prevPhase = this.enemies.phase;
     this.enemies.update(dt, this.player.alive ? this.player : null);
     if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
+    this.options.update(dt, this.player, this.bullets);
     this.fx.update(dt);
     this.checkCollisions();
 
@@ -133,7 +137,7 @@ export class Game {
 
         e.hp -= b.damage;
         if (e.hitFlash !== undefined) e.hitFlash = 0.08;
-        if (b.kind === 'shot') {
+        if (b.kind === 'shot' || b.kind === 'option') {
           b.dead = true;
           this.fx.hit(b.x + b.w / 2, b.y);
           audio.hit();
@@ -143,6 +147,7 @@ export class Game {
         if (e.hp <= 0) {
           e.dead = true;
           this.addScore(e.score, e.x, e.y);
+          this.options.onEnemyKill(e.x, e.y);
           const big = e.radius > 20;
           this.fx.explosion(e.x, e.y, {
             color: big ? '#ff80c0' : '#ffb060',
@@ -155,6 +160,9 @@ export class Game {
         if (b.dead) break;
       }
     }
+
+    // option units intercept enemy bullets
+    this.options.blockEnemyBullets(this.enemies.bullets, this.fx, audio);
 
     // enemies & enemy bullets vs player
     const p = this.player;
@@ -314,6 +322,32 @@ export class Game {
       ctx.lineTo(x - 7, y + 5);
       ctx.closePath();
       ctx.fill();
+    }
+
+    // option unit indicators (small glowing circles, bottom-left)
+    const opts = this.options.units;
+    for (let i = 0; i < opts.length; i++) {
+      const ox = 20 + i * 22;
+      const oy = H - 48;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = opts[i].hitFlash > 0 ? '#ffffff' : '#b59ae0';
+      ctx.fill();
+      ctx.strokeStyle = '#7df9ff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    // pending capsule indicators (dimmed)
+    for (let i = 0; i < this.options.capsules.length; i++) {
+      const ox = 20 + (opts.length + i) * 22;
+      const oy = H - 48;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(181,154,224,0.25)';
+      ctx.fill();
+      ctx.strokeStyle = '#5a4080';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
 
     // charge gauge
