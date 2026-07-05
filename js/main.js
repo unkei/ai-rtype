@@ -1,101 +1,15 @@
-// AI R-TYPE — entry point: game loop, state machine, parallax background
+// AI R-TYPE — entry point: game loop, state machine, HUD overlay.
+// World rendering is delegated to Render3D (Three.js); this file owns
+// game logic and the 2D text/HUD overlay canvas.
 import { W, H, STATE } from './config.js';
 import { InputManager } from './input.js';
 import { Player, BulletManager } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
+import { Render3D, loadModels } from './render3d.js';
 
 export { W, H, STATE };
-
-// ---------------------------------------------------------------- background
-
-class Starfield {
-  constructor() {
-    this.layers = [
-      { speed: 30,  size: 1, count: 70, color: 'rgba(120,140,200,0.7)', stars: [] },
-      { speed: 80,  size: 2, count: 40, color: 'rgba(180,200,255,0.85)', stars: [] },
-      { speed: 160, size: 3, count: 18, color: 'rgba(255,255,255,1)',   stars: [] },
-    ];
-    for (const layer of this.layers) {
-      for (let i = 0; i < layer.count; i++) {
-        layer.stars.push({ x: Math.random() * W, y: Math.random() * H });
-      }
-    }
-  }
-
-  update(dt, speedScale = 1) {
-    for (const layer of this.layers) {
-      for (const s of layer.stars) {
-        s.x -= layer.speed * speedScale * dt;
-        if (s.x < -4) {
-          s.x = W + 4;
-          s.y = Math.random() * H;
-        }
-      }
-    }
-  }
-
-  render(ctx) {
-    for (const layer of this.layers) {
-      ctx.fillStyle = layer.color;
-      for (const s of layer.stars) {
-        ctx.fillRect(s.x | 0, s.y | 0, layer.size, layer.size);
-      }
-    }
-  }
-}
-
-// Scrolling jagged terrain strips along the top and bottom edges.
-class Terrain {
-  constructor() {
-    this.seg = 48;            // horizontal width of one segment
-    this.speed = 120;
-    this.offset = 0;
-    const n = Math.ceil(W / this.seg) + 3;
-    this.top = Array.from({ length: n }, () => this._h());
-    this.bottom = Array.from({ length: n }, () => this._h());
-  }
-
-  _h() {
-    return 14 + Math.random() * 34;
-  }
-
-  update(dt, speedScale = 1) {
-    this.offset += this.speed * speedScale * dt;
-    while (this.offset >= this.seg) {
-      this.offset -= this.seg;
-      this.top.shift();
-      this.top.push(this._h());
-      this.bottom.shift();
-      this.bottom.push(this._h());
-    }
-  }
-
-  render(ctx) {
-    ctx.fillStyle = '#1a2438';
-    ctx.strokeStyle = '#33476e';
-    ctx.lineWidth = 2;
-    this._strip(ctx, this.top, true);
-    this._strip(ctx, this.bottom, false);
-  }
-
-  _strip(ctx, heights, isTop) {
-    ctx.beginPath();
-    const x0 = -this.offset - this.seg;
-    ctx.moveTo(x0, isTop ? 0 : H);
-    for (let i = 0; i < heights.length; i++) {
-      const x = x0 + i * this.seg;
-      const y = isTop ? heights[i] : H - heights[i];
-      ctx.lineTo(x + this.seg * 0.5, y);
-      ctx.lineTo(x + this.seg, isTop ? heights[i] * 0.45 : H - heights[i] * 0.45);
-    }
-    ctx.lineTo(x0 + heights.length * this.seg, isTop ? 0 : H);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }
-}
 
 // ---------------------------------------------------------------------- game
 
@@ -105,8 +19,6 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.input = new InputManager(canvas);
     this.state = STATE.TITLE;
-    this.starfield = new Starfield();
-    this.terrain = new Terrain();
     this.time = 0;            // global clock for blink effects
     this.stateTime = 0;       // time since last state change
 
@@ -174,8 +86,6 @@ export class Game {
     this.input.beginFrame();
     // Web Audio needs a user gesture before it can make sound
     if (this.input.firePressed || this.input.startPressed) audio.unlock();
-    this.starfield.update(dt);
-    this.terrain.update(dt);
 
     switch (this.state) {
       case STATE.TITLE:    this.updateTitle(dt); break;
@@ -290,12 +200,12 @@ export class Game {
     }
   }
 
-  render() {
+  // ------------------------------------------------------------- overlay
+  // Text, HUD and touch UI on the transparent 2D canvas above the WebGL view.
+
+  renderOverlay() {
     const ctx = this.ctx;
-    ctx.fillStyle = '#05070f';
-    ctx.fillRect(0, 0, W, H);
-    this.starfield.render(ctx);
-    this.terrain.render(ctx);
+    ctx.clearRect(0, 0, W, H);
 
     switch (this.state) {
       case STATE.TITLE:    this.renderTitle(ctx); break;
@@ -330,10 +240,7 @@ export class Game {
   }
 
   renderPlaying(ctx) {
-    this.bullets.render(ctx);
-    this.enemies.render(ctx);
-    this.player.render(ctx);
-    this.fx.render(ctx);
+    this.fx.renderPopups(ctx);
     this.renderHud(ctx);
 
     if (this.enemies.phase === 'warning' && Math.floor(this.time * 4) % 2 === 0) {
@@ -345,8 +252,7 @@ export class Game {
   }
 
   renderGameover(ctx) {
-    this.enemies.render(ctx);
-    this.fx.render(ctx);
+    this.fx.renderPopups(ctx);
     this.renderHud(ctx);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff6060';
@@ -428,20 +334,42 @@ export class Game {
 
 // ------------------------------------------------------------------- scaling
 
-function fitCanvas(canvas) {
+function fitCanvas(wrap) {
   const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
-  canvas.style.width = `${Math.floor(W * scale)}px`;
-  canvas.style.height = `${Math.floor(H * scale)}px`;
+  wrap.style.width = `${Math.floor(W * scale)}px`;
+  wrap.style.height = `${Math.floor(H * scale)}px`;
 }
 
 // ---------------------------------------------------------------------- boot
 
-function boot() {
-  const canvas = document.getElementById('game');
-  const game = new Game(canvas);
+async function boot() {
+  const wrap = document.getElementById('wrap');
+  const overlay = document.getElementById('game');
+  fitCanvas(wrap);
+  window.addEventListener('resize', () => fitCanvas(wrap));
 
-  fitCanvas(canvas);
-  window.addEventListener('resize', () => fitCanvas(canvas));
+  // 3D models load async — show a splash on the overlay meanwhile
+  const splash = overlay.getContext('2d');
+  splash.fillStyle = '#05070f';
+  splash.fillRect(0, 0, W, H);
+  splash.textAlign = 'center';
+  splash.fillStyle = '#8fd0ff';
+  splash.font = 'bold 28px monospace';
+  splash.fillText('LOADING...', W / 2, H / 2);
+  try {
+    await loadModels();
+  } catch (err) {
+    splash.fillStyle = '#ff6060';
+    splash.font = '18px monospace';
+    splash.fillText('FAILED TO LOAD 3D MODELS — RELOAD TO RETRY', W / 2, H / 2 + 40);
+    throw err;
+  }
+
+  const game = new Game(overlay);
+  const r3d = new Render3D(document.getElementById('game3d'));
+  r3d.initScenery();
+  window.__game = game;      // debug/test hooks
+  window.__r3d = r3d;
 
   let last = performance.now();
   function frame(now) {
@@ -449,7 +377,9 @@ function boot() {
     const dt = Math.min((now - last) / 1000, 1 / 20);
     last = now;
     game.update(dt);
-    game.render();
+    r3d.update(dt, game);
+    r3d.render();
+    game.renderOverlay();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

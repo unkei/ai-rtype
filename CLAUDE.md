@@ -1,6 +1,7 @@
 # ai-rtype
 
-R-Type ライクな横スクロールSTG。Vanilla JS + Canvas、ビルド工程なし。
+R-Type ライクな横スクロールSTG。Vanilla JS + Three.js（CDN importmap）、ビルド工程なし。
+ロジックは 2D（960×540）、描画は js/render3d.js の WebGL + Bloom、HUD は透明 Canvas オーバーレイ。
 
 ## セッション開始時に必ず読むこと
 
@@ -20,6 +21,7 @@ R-Type ライクな横スクロールSTG。Vanilla JS + Canvas、ビルド工程
 ```bash
 for f in js/*.js; do node --check "$f"; done   # 構文チェック
 python3 -m http.server 8080                     # ローカル確認（ES modules のため要HTTPサーバ）
+# ヘッドレス確認: test-autoplay.html を Chrome --headless=new --virtual-time-budget で撮影（README 参照）
 ```
 
 公開URL: https://unkei.github.io/ai-rtype/ （main から配信）

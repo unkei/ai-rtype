@@ -1,6 +1,6 @@
 # AI R-TYPE — Fable Edition
 
-R-Type ライクな横スクロールシューティング。Vanilla JS + Canvas 2D、ビルド工程なし・外部アセットなし（音は Web Audio で合成）。
+R-Type ライクな横スクロールシューティング。Vanilla JS + Three.js（CDN importmap 経由）による 3D グラフィック、ビルド工程なし。ゲームロジックは 2D、描画は WebGL + Bloom の 2.5D 構成。3D モデルは [Kenney Space Kit](https://kenney.nl/assets/space-kit)（CC0）、音は Web Audio で合成。
 
 **▶ プレイ: https://unkei.github.io/ai-rtype/**
 
@@ -25,5 +25,18 @@ python3 -m http.server 8080   # ES modules のため要HTTPサーバ
 for f in js/*.js; do node --check "$f"; done   # 構文チェック
 ```
 
+ヘッドレスでの動作確認（自動プレイでスクリーンショット）:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --window-size=960,540 --hide-scrollbars \
+  --virtual-time-budget=7600 --screenshot=/tmp/rtype.png \
+  "http://localhost:8080/test-autoplay.html"
+```
+
 - 開発計画と進捗: [docs/PLAN.md](docs/PLAN.md)
 - ブランチ/PR運用規約: [docs/WORKFLOW.md](docs/WORKFLOW.md)（ベースブランチは `main`、直接pushせずPR経由）
+
+## クレジット
+
+- 3D モデル: [Kenney Space Kit](https://kenney.nl/assets/space-kit)（CC0 / パブリックドメイン、`assets/models/`）

@@ -45,6 +45,11 @@ git pull origin main
 
 ## コーディング規約
 
-- Vanilla JS（ES modules）+ Canvas 2D。ビルド工程・外部依存を導入しない
-- 画像・音声アセットは使わない（描画はプリミティブ、音は Web Audio で合成）
+- Vanilla JS（ES modules）。ビルド工程を導入しない。外部ライブラリは Three.js のみ
+  （CDN importmap 経由。npm / bundler は使わない）
+- 描画はゲームロジックと分離: ロジックは 2D 座標系（960×540）、描画は `js/render3d.js`
+  （Three.js WebGL）、テキスト HUD は透明 Canvas 2D オーバーレイ
+- 3Dモデルは `assets/models/` の CC0 GLB（Kenney Space Kit）を使う。新規アセットは
+  CC0 ライセンスのもののみ追加可（ライセンスファイルを同ディレクトリに置く）
+- 音声アセットは使わない（Web Audio で合成）
 - 入力は必ず `js/input.js` の InputManager 経由で読む（直接 addEventListener しない）
