@@ -8,6 +8,7 @@ import { EnemyManager, MegaBoss } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
 import { OptionManager } from './options.js';
+import { TerrainManager } from './terrain.js';
 import { Render3D, loadModels } from './render3d.js';
 
 export { W, H, STATE };
@@ -28,6 +29,7 @@ export class Game {
     this.enemies = new EnemyManager();
     this.fx = new FX();
     this.options = new OptionManager();
+    this.terrain = new TerrainManager();
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
@@ -78,6 +80,7 @@ export class Game {
     this.enemies = new EnemyManager();
     this.fx = new FX();
     this.options = new OptionManager();
+    this.terrain = new TerrainManager();
     this.score = 0;
     this.lives = 3;
     this.respawnTimer = 0;
@@ -118,6 +121,7 @@ export class Game {
     if (this.enemies.phase === 'waves' && prevPhase === 'boss') audio.bgmStage();
     if (!prevBossP2 && this.enemies.boss?.isPhase2) audio.bossPhase2();
     this.options.update(dt, this.player, this.bullets, this.input);
+    this.terrain.update(dt, this.enemies.loop);
     this.fx.update(dt);
     this.checkCollisions();
 
@@ -134,6 +138,17 @@ export class Game {
   }
 
   checkCollisions() {
+    // bullets vs terrain (both sides' shots are stopped by rock)
+    for (const b of this.bullets.list) {
+      if (!b.dead && this.terrain.hitTest(b.x, b.y, 3)) {
+        b.dead = true;
+        this.fx.hit(b.x, b.y);
+      }
+    }
+    for (const b of this.enemies.bullets) {
+      if (!b.dead && this.terrain.hitTest(b.x, b.y, b.r)) b.dead = true;
+    }
+
     // player bullets vs enemies
     for (const b of this.bullets.list) {
       if (b.dead) continue;
@@ -180,6 +195,10 @@ export class Game {
     // enemies & enemy bullets vs player
     const p = this.player;
     if (!p.alive || p.invuln > 0) return;
+    if (this.terrain.hitTest(p.x, p.y, p.radius + 2)) {
+      this.killPlayer();
+      return;
+    }
     for (const e of this.enemies.enemies) {
       if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
         if (!(e instanceof MegaBoss)) {
@@ -255,6 +274,7 @@ export class Game {
     // let the battlefield wind down behind the message
     this.enemies.spawningEnabled = false;
     this.enemies.update(dt, null);
+    this.terrain.update(dt, this.enemies.loop);
     this.fx.update(dt);
     // brief lockout so a held button doesn't skip the screen instantly
     if (this.stateTime > 1 && (this.input.firePressed || this.input.startPressed)) {

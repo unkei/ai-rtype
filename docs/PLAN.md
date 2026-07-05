@@ -25,7 +25,8 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 12 | R-Typeスタイル Force オプション: オプションが自機前方(front)/後方(back)にドック。Vキー/L1/タッチFORCEで最新ユニットをデタッチ（スクリーン端まで滑走・両方向射撃）または全ユニットをリコール。破壊時はカプセル再ドロップ。HUDにF/B/Dラベル表示 | `feature/option-rtype` | ✅ 完了 |
 | 10 | 難易度・ステージ拡張: LOOP_T を 26→55秒に延長。新敵種 Homing（追尾飛行）・MineLayer（機雷散布）追加。ボスに第2フェーズ（HP50%以下で攻撃激化）。周回ランク上昇率を強化。より多彩なウェーブスクリプト | `feature/difficulty` | ✅ 完了 |
 | 11 | BGM追加: Web Audio APIで合成BGMを実装（ステージ曲・ボス曲）。ボス登場時の警告BGMを強化。外部ファイル対応も設計に組み込む（将来的なCC0音源差し替え用フック）。ゲームオーバー曲も拡張 | `feature/bgm` | ✅ 完了 |
-| 12 | 敵バリアント＋メガボス: 新敵3種（Spinner 8方向弾、Carrier 護衛展開、Armored 重装甲→突進）。MegaBoss（3周ごとに登場、3つの弱点破壊で撃破）。ループごとにスター流れ方向をランダム変更 | `feature/enemy-variants` | ✅ 完了 |
+| 13 | 敵バリアント＋メガボス: 新敵3種（Spinner 8方向弾、Carrier 護衛展開、Armored 重装甲→突進）。MegaBoss（3周ごとに登場、3つの弱点破壊で撃破）。ループごとにスター流れ方向をランダム変更 | `feature/enemy-variants` | ✅ 完了 |
+| 14 | 中間地形障害物: 画面中央に岩柱・壁ゲート・上下壁キャップが120px/sで右から流れてくる。40秒周期スクリプト（pillar/gate/topWall/bottomWall）。自機は接触即死（無敵時間あり）、自機弾・敵弾は貫通不可。敵は素通り。3D描画は暗いBoxメッシュ+青アディティブグロー縁取り。周回2周目以降でmaze variant（3本柱）解放 | `feature/terrain-obstacles` | ✅ 完了 |
 
 状態の凡例: ⬜ 未着手 / 🔄 作業中 / ✅ 完了
 **各PRで担当タスクの状態を必ず更新すること。**
@@ -41,6 +42,7 @@ js/input.js        … InputManager（3入力系統を統合、エッジ検出�
 js/player.js       … 自機、弾、チャージビーム（ロジックのみ）
 js/enemies.js      … 敵各種、ウェーブ管理、ボス（ロジックのみ）
 js/options.js      … オプションカプセル・オプションユニット管理（タスク9以降）
+js/terrain.js      … 中間地形障害物（TerrainManager: pillar/gate/wall, タスク12以降）
 js/fx.js           … パーティクル状態、スコアポップアップ
 js/audio.js        … Web Audio による効果音・BGM（外部アセットなし）
 test-autoplay.html … ヘッドレス動作確認用の自動プレイページ

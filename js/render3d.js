@@ -126,6 +126,7 @@ const MAT = {
   planet:     new THREE.MeshStandardMaterial({ color: 0x24455f, roughness: 0.95, metalness: 0.05, fog: false }),
   planetGlow: new THREE.MeshBasicMaterial({ color: 0x4f9ec4, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide, fog: false }),
   wall:       new THREE.MeshStandardMaterial({ color: 0x141b2c, roughness: 0.95, metalness: 0.1 }),
+  wallGlow:   new THREE.MeshBasicMaterial({ color: 0x3a5aa0, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide }),
 };
 
 const GEO = {
@@ -733,6 +734,25 @@ export class Render3D {
     }
   }
 
+  // ---------------------------------------------------- terrain obstacles
+
+  _syncObstacles(game) {
+    if (!game.terrain) return;
+    for (const s of game.terrain.segments) {
+      if (s.dead) continue;
+      const o = this._obj(s, () => {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(GEO.box, MAT.wall));
+        const glow = new THREE.Mesh(GEO.box, MAT.wallGlow);
+        glow.scale.setScalar(1.06);      // slightly larger shell = edge glow
+        g.add(glow);
+        return g;
+      });
+      o.position.set(wx(s.x + s.w / 2), wy(s.y + s.h / 2), 0);
+      o.scale.set(s.w, s.h, 40);
+    }
+  }
+
   // ----------------------------------------------------------------- frame
 
   update(dt, game) {
@@ -748,6 +768,7 @@ export class Render3D {
       this._syncEnemies(game);
       this._syncBullets(game);
       this._syncOptions(game);
+      this._syncObstacles(game);
     }
     for (const [ent, o] of this._meshes) {
       if (!this._live.has(ent)) {
