@@ -8,7 +8,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { W, H, STATE } from './config.js';
-import { Straight, Sine, Dart, Turret, Boss, Homing, MineLayer } from './enemies.js';
+import { Straight, Sine, Dart, Turret, Boss, Homing, MineLayer, Spinner, Carrier, Armored, MegaBoss } from './enemies.js';
 
 // logical (y-down) → world (y-up), gameplay plane at z=0
 const wx = (x) => x - W / 2;
@@ -194,6 +194,75 @@ function buildBoss() {
   return g;
 }
 
+function retint(g, hex) {
+  const tint = new THREE.Color(hex);
+  g.traverse((o) => {
+    if (o.isMesh) {
+      o.material = o.material.clone();
+      o.material.color.multiply(tint);
+      o.userData.origMat = o.material;
+    }
+  });
+  return g;
+}
+
+function buildSpinner() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x66ffd0, emissive: 0x1a5a48, roughness: 0.5, metalness: 0.3,
+  });
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2;
+    const arm = new THREE.Mesh(GEO.box, mat);
+    arm.scale.set(30, 6, 6);
+    arm.position.set(Math.cos(a) * 14, Math.sin(a) * 14, 0);
+    arm.rotation.z = a;
+    g.add(arm);
+  }
+  const hub = new THREE.Mesh(GEO.sphere, mat);
+  hub.scale.setScalar(9);
+  g.add(hub);
+  return g;
+}
+
+function buildCarrier() {
+  const g = spawn('boss');
+  g.scale.setScalar(80 / 190);      // boss proto is normalized to len 190
+  return retint(g, 0x4080ff);
+}
+
+function buildArmored() {
+  const g = spawn('rockA');         // proto normalized to len 1
+  g.scale.setScalar(55);
+  return retint(g, 0xaaaaaa);
+}
+
+function buildMegaBoss(e) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(GEO.sphere, new THREE.MeshStandardMaterial({
+    color: 0x3a1a2a, emissive: 0x200a14, roughness: 0.7, metalness: 0.4,
+  }));
+  body.scale.setScalar(e.radius);
+  g.add(body);
+  g.userData.body = body;
+
+  const wps = [];
+  for (const wp of e.weakPoints) {
+    const grp = new THREE.Group();
+    const glow = new THREE.Mesh(GEO.sphere, MAT.ebullet);
+    glow.scale.setScalar(wp.r);
+    grp.add(glow);
+    const core = new THREE.Mesh(GEO.sphere, MAT.bossCore);
+    core.scale.setScalar(wp.r * 0.55);
+    grp.add(core);
+    g.add(grp);
+    wps.push(grp);
+  }
+  g.userData.wps = wps;
+  g.add(new THREE.PointLight(0xff5078, 3000, 700));
+  return g;
+}
+
 function buildBullet(b) {
   const g = new THREE.Group();
   if (b.kind === 'beam') {
@@ -298,16 +367,19 @@ export class Render3D {
     }
   }
 
-  _scrollStars(dt) {
+  _scrollStars(dt, dir = { x: -1, y: 0 }) {
     for (const l of this._starLayers) {
       const pos = l.points.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
-        let x = pos.getX(i) - l.speed * dt;
-        if (x < -l.halfW) {
-          x = l.halfW;
-          pos.setY(i, (Math.random() - 0.5) * l.halfH * 2);
-        }
+        // logical y-down -> world y-up, hence the minus on the y component
+        let x = pos.getX(i) + l.speed * dir.x * dt;
+        let y = pos.getY(i) - l.speed * dir.y * dt;
+        if (x < -l.halfW) x += l.halfW * 2;
+        if (x > l.halfW) x -= l.halfW * 2;
+        if (y < -l.halfH) y += l.halfH * 2;
+        if (y > l.halfH) y -= l.halfH * 2;
         pos.setX(i, x);
+        pos.setY(i, y);
       }
       pos.needsUpdate = true;
     }
@@ -553,6 +625,25 @@ export class Render3D {
         o.rotation.z = -e.angle + Math.PI;
       } else if (e instanceof MineLayer) {
         o = this._obj(e, () => spawn('straight'));
+      } else if (e instanceof Spinner) {
+        o = this._obj(e, buildSpinner);
+        o.rotation.z = e.t * 3;
+      } else if (e instanceof Carrier) {
+        o = this._obj(e, buildCarrier);
+        o.rotation.x = Math.sin(e.t * 0.9) * 0.12;
+      } else if (e instanceof Armored) {
+        o = this._obj(e, buildArmored);
+        o.rotation.z = e.t * (e.phase === 'charge' ? 4 : 0.8);
+      } else if (e instanceof MegaBoss) {
+        o = this._obj(e, () => buildMegaBoss(e));
+        o.userData.body.rotation.y = e.t * 0.3;
+        e.weakPoints.forEach((wp, i) => {
+          const grp = o.userData.wps[i];
+          grp.visible = !wp.dead;
+          grp.position.set(wp.x - e.x, e.y - wp.y, 30);
+          grp.children[1].material = wp.hitFlash > 0 ? MAT.flash : MAT.bossCore;
+          grp.children[0].scale.setScalar(wp.r * (1 + Math.sin(e.t * 5 + i) * 0.15));
+        });
       } else {
         continue;
       }
@@ -646,7 +737,7 @@ export class Render3D {
 
   update(dt, game) {
     this.time += dt;
-    this._scrollStars(dt);
+    this._scrollStars(dt, game.enemies.scrollDir);
     this._scrollTerrain(dt);
     this._scrollDrifters(dt);
     this._planet.rotation.y += dt * 0.02;
