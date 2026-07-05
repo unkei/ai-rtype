@@ -117,7 +117,7 @@ export class Game {
     if (this.enemies.phase === 'boss' && prevPhase === 'warning') audio.bgmBoss();
     if (this.enemies.phase === 'waves' && prevPhase === 'boss') audio.bgmStage();
     if (!prevBossP2 && this.enemies.boss?.isPhase2) audio.bossPhase2();
-    this.options.update(dt, this.player, this.bullets);
+    this.options.update(dt, this.player, this.bullets, this.input);
     this.fx.update(dt);
     this.checkCollisions();
 
@@ -252,7 +252,7 @@ export class Game {
     }
     ctx.font = '15px monospace';
     ctx.fillStyle = '#46618a';
-    ctx.fillText('MOVE: ARROWS / WASD / STICK · FIRE: Z X SPACE (HOLD = CHARGE)', W / 2, H - 70);
+    ctx.fillText('MOVE: ARROWS / WASD · FIRE: Z X SPACE (HOLD = CHARGE) · FORCE: V', W / 2, H - 70);
   }
 
   renderPlaying(ctx) {
@@ -339,18 +339,25 @@ export class Game {
       ctx.fill();
     }
 
-    // option unit indicators (small glowing circles, bottom-left)
+    // option unit indicators (small glowing circles + F/B/D labels, bottom-left)
     const opts = this.options.units;
     for (let i = 0; i < opts.length; i++) {
+      const u = opts[i];
       const ox = 20 + i * 22;
       const oy = H - 48;
+      const det = u.mode === 'detached' || u.mode === 'recall';
       ctx.beginPath();
       ctx.arc(ox, oy, 8, 0, Math.PI * 2);
-      ctx.fillStyle = opts[i].hitFlash > 0 ? '#ffffff' : '#b59ae0';
+      ctx.fillStyle = u.hitFlash > 0 ? '#ffffff'
+        : det ? 'rgba(181,154,224,0.35)' : '#b59ae0';
       ctx.fill();
-      ctx.strokeStyle = '#7df9ff';
+      ctx.strokeStyle = det ? '#4a6a90' : '#7df9ff';
       ctx.lineWidth = 1.5;
       ctx.stroke();
+      ctx.fillStyle = det ? '#6a7a95' : '#cfe0ff';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(det ? 'D' : (u.mode === 'front' ? 'F' : 'B'), ox, oy + 22);
     }
     // pending capsule indicators (dimmed)
     for (let i = 0; i < this.options.capsules.length; i++) {

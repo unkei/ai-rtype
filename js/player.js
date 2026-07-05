@@ -23,7 +23,7 @@ class Bullet {
 
   update(dt) {
     this.x += this.vx * dt;
-    if (this.x - this.w / 2 > W + 40) this.dead = true;
+    if (this.x - this.w / 2 > W + 40 || this.x + this.w / 2 < -40) this.dead = true;
   }
 }
 
@@ -38,6 +38,10 @@ export class BulletManager {
 
   spawnOptionShot(x, y) {
     this.list.push(new Bullet(x, y, 560, 10, 4, 1, 0, 'option'));
+  }
+
+  spawnOptionShotBack(x, y) {
+    this.list.push(new Bullet(x, y, -480, 10, 4, 1, 0, 'option'));
   }
 
   spawnBeam(x, y, level) {
