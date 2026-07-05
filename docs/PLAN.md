@@ -21,6 +21,9 @@ GitHub Pages に公開する。ビルド工程なし（静的ファイルのみ�
 | 6 | 仕上げと公開: Web Audio 効果音、タッチUI調整、README、GitHub Pages 配信元切替＋動作確認 | `feature/fable-polish` | ✅ 完了 |
 | 7 | 運用切替: main を通常運用ブランチ化（fable_ver を force push で反映済み）、docs のルール更新、Pages 配信元を main に変更 | `chore/main-workflow` | ✅ 完了 |
 | 8 | グラフィック3D化: Three.js（CDN importmap）+ UnrealBloom で全描画を 3D モデル化（Kenney Space Kit の CC0 GLB）。惑星・岩石地形・漂流メテオの背景。HUD/テキストは透明 Canvas オーバーレイ。ロジックは 2D のまま | `feature/three-graphics` | ✅ 完了 |
+| 9 | オプションシステム: 敵10体撃破でカプセルドロップ → 取得でオプション付与（最大3個）。オプションは自機後方を追従し前方へ自動射撃。敵弾を防ぐ（HP5消費）。3D描画はグロー球体。HUDにオプション数を表示 | `feature/options` | 🔄 作業中 |
+| 10 | 難易度・ステージ拡張: LOOP_T を 26→55秒に延長。新敵種 Homing（追尾飛行）・MineLayer（機雷散布）追加。ボスに第2フェーズ（HP50%以下で攻撃激化）。周回ランク上昇率を強化。より多彩なウェーブスクリプト | `feature/difficulty` | ⬜ 未着手 |
+| 11 | BGM追加: Web Audio APIで合成BGMを実装（ステージ曲・ボス曲）。ボス登場時の警告BGMを強化。外部ファイル対応も設計に組み込む（将来的なCC0音源差し替え用フック）。ゲームオーバー曲も拡張 | `feature/bgm` | ⬜ 未着手 |
 
 状態の凡例: ⬜ 未着手 / 🔄 作業中 / ✅ 完了
 **各PRで担当タスクの状態を必ず更新すること。**
@@ -35,8 +38,9 @@ assets/models/     … Kenney Space Kit の GLB モデル（CC0、ライセン�
 js/input.js        … InputManager（3入力系統を統合、エッジ検出）
 js/player.js       … 自機、弾、チャージビーム（ロジックのみ）
 js/enemies.js      … 敵各種、ウェーブ管理、ボス（ロジックのみ）
+js/options.js      … オプションカプセル・オプションユニット管理（タスク9以降）
 js/fx.js           … パーティクル状態、スコアポップアップ
-js/audio.js        … Web Audio による効果音（外部アセットなし）
+js/audio.js        … Web Audio による効果音・BGM（外部アセットなし）
 test-autoplay.html … ヘッドレス動作確認用の自動プレイページ
 ```
 

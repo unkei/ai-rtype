@@ -36,6 +36,10 @@ export class BulletManager {
     this.list.push(new Bullet(x, y, 700, 14, 4, 1, 0, 'shot'));
   }
 
+  spawnOptionShot(x, y) {
+    this.list.push(new Bullet(x, y, 560, 10, 4, 1, 0, 'option'));
+  }
+
   spawnBeam(x, y, level) {
     const spec = [
       { h: 8,  damage: 3,  pierce: 2 },

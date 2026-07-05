@@ -111,6 +111,10 @@ const MAT = {
   bossCore:   new THREE.MeshBasicMaterial({ color: 0xff5078 }),
   flash:      new THREE.MeshBasicMaterial({ color: 0xffffff }),
 
+  optCapsule: new THREE.MeshBasicMaterial({ color: 0xb59ae0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }),
+  optUnit:    new THREE.MeshBasicMaterial({ color: 0x9060ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+  optShot:    new THREE.MeshBasicMaterial({ color: 0xcc88ff }),
+
   shot:       new THREE.MeshBasicMaterial({ color: 0x7df9ff }),
   beam:       new THREE.MeshBasicMaterial({ color: 0xbfffff }),
   beamAura:   new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }),
@@ -197,6 +201,10 @@ function buildBullet(b) {
     const aura = new THREE.Mesh(GEO.box, MAT.beamAura);
     aura.scale.set(b.w + 16, b.h * 1.5 + 10, b.h * 1.5 + 10);
     g.add(aura);
+  } else if (b.kind === 'option') {
+    const core = new THREE.Mesh(GEO.sphere, MAT.optShot);
+    core.scale.setScalar(6);
+    g.add(core);
   } else {
     const core = new THREE.Mesh(GEO.box, MAT.shot);
     core.scale.set(18, 5, 5);
@@ -548,6 +556,57 @@ export class Render3D {
     }
   }
 
+  _syncOptions(game) {
+    if (!game.options) return;
+
+    for (const c of game.options.capsules) {
+      const o = this._obj(c, () => {
+        const g = new THREE.Group();
+        const outer = new THREE.Mesh(GEO.sphere, MAT.optCapsule);
+        outer.scale.setScalar(11);
+        g.add(outer);
+        const inner = new THREE.Mesh(GEO.sphere, MAT.flash);
+        inner.scale.setScalar(4);
+        g.add(inner);
+        g.add(new THREE.PointLight(0xb59ae0, 500, 140));
+        return g;
+      });
+      o.position.set(wx(c.x), wy(c.y), 0);
+      o.rotation.y = c.t * 2.5;
+      o.rotation.z = c.t * 1.2;
+    }
+
+    for (const u of game.options.units) {
+      const o = this._obj(u, () => {
+        const g = new THREE.Group();
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(13, 2.5, 8, 24),
+          MAT.optUnit,
+        );
+        ring.userData.origMat = MAT.optUnit;
+        g.add(ring);
+        const core = new THREE.Mesh(GEO.sphere, MAT.optShot);
+        core.scale.setScalar(6);
+        core.userData.origMat = MAT.optShot;
+        g.add(core);
+        g.userData.ring = ring;
+        g.add(new THREE.PointLight(0x9060ff, 700, 180));
+        return g;
+      });
+      o.position.set(wx(u.x), wy(u.y), 10);
+      o.userData.ring.rotation.z = this.time * 3 + u.index * Math.PI / 1.5;
+      o.userData.ring.rotation.x = Math.sin(this.time * 2 + u.index) * 0.4;
+      // flash white when hit
+      if (u.hitFlash > 0) {
+        o.traverse((n) => { if (n.isMesh) n.material = MAT.flash; });
+      } else {
+        o.traverse((n) => {
+          if (n.isMesh && n.userData.origMat) n.material = n.userData.origMat;
+        });
+      }
+    }
+  }
+
   // ----------------------------------------------------------------- frame
 
   update(dt, game) {
@@ -562,6 +621,7 @@ export class Render3D {
       this._syncPlayer(game);
       this._syncEnemies(game);
       this._syncBullets(game);
+      this._syncOptions(game);
     }
     for (const [ent, o] of this._meshes) {
       if (!this._live.has(ent)) {
