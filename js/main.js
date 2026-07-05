@@ -67,6 +67,9 @@ export class Game {
       this._saveHiScore();
       audio.gameover();
     }
+    if (s === STATE.TITLE) {
+      audio.bgmStop();
+    }
   }
 
   startGame() {
@@ -81,6 +84,7 @@ export class Game {
     this.newRecord = false;
     this.setState(STATE.PLAYING);
     audio.start();
+    audio.bgmStage();
   }
 
   update(dt) {
@@ -110,6 +114,8 @@ export class Game {
     const prevBossP2 = this.enemies.boss?.isPhase2 ?? false;
     this.enemies.update(dt, this.player.alive ? this.player : null);
     if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
+    if (this.enemies.phase === 'boss' && prevPhase === 'warning') audio.bgmBoss();
+    if (this.enemies.phase === 'waves' && prevPhase === 'boss') audio.bgmStage();
     if (!prevBossP2 && this.enemies.boss?.isPhase2) audio.bossPhase2();
     this.options.update(dt, this.player, this.bullets);
     this.fx.update(dt);
