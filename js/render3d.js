@@ -8,7 +8,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { W, H, STATE } from './config.js';
-import { Straight, Sine, Dart, Turret, Boss } from './enemies.js';
+import { Straight, Sine, Dart, Turret, Boss, Homing, MineLayer } from './enemies.js';
 
 // logical (y-down) → world (y-up), gameplay plane at z=0
 const wx = (x) => x - W / 2;
@@ -111,6 +111,8 @@ const MAT = {
   bossCore:   new THREE.MeshBasicMaterial({ color: 0xff5078 }),
   flash:      new THREE.MeshBasicMaterial({ color: 0xffffff }),
 
+  mine:       new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+  mineCore:   new THREE.MeshBasicMaterial({ color: 0xffdddd }),
   optCapsule: new THREE.MeshBasicMaterial({ color: 0xb59ae0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }),
   optUnit:    new THREE.MeshBasicMaterial({ color: 0x9060ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
   optShot:    new THREE.MeshBasicMaterial({ color: 0xcc88ff }),
@@ -535,6 +537,22 @@ export class Render3D {
         setFlash(o, e.phase === 'aim' && Math.floor(e.t * 12) % 2 === 0);
       } else if (e instanceof Turret) {
         o = this._obj(e, () => buildTurret(e.top));
+      } else if (e instanceof Homing) {
+        o = this._obj(e, () => {
+          const g = spawn('dart');
+          g.traverse((n) => {
+            if (n.isMesh) {
+              n.material = n.material.clone();
+              n.material.color.set(0xff60a0);
+              if (n.material.emissive) n.material.emissive.set(0x601030).multiplyScalar(0.4);
+              n.userData.origMat = n.material;
+            }
+          });
+          return g;
+        });
+        o.rotation.z = -e.angle + Math.PI;
+      } else if (e instanceof MineLayer) {
+        o = this._obj(e, () => spawn('straight'));
       } else {
         continue;
       }
@@ -550,9 +568,26 @@ export class Render3D {
     }
     for (const b of game.enemies.bullets) {
       if (b.dead) continue;
-      const o = this._obj(b, () => buildEnemyBullet(b));
-      o.position.set(wx(b.x), wy(b.y), 0);
-      o.rotation.y = this.time * 5;
+      if (b.isMine) {
+        const o = this._obj(b, () => {
+          const g = new THREE.Group();
+          const outer = new THREE.Mesh(new THREE.OctahedronGeometry(b.r + 3, 0), MAT.mine);
+          g.add(outer);
+          const core = new THREE.Mesh(GEO.sphere, MAT.mineCore);
+          core.scale.setScalar(b.r * 0.5);
+          g.add(core);
+          g.add(new THREE.PointLight(0xff4444, 380, 110));
+          g.userData.outer = outer;
+          return g;
+        });
+        o.position.set(wx(b.x), wy(b.y), 0);
+        o.userData.outer.rotation.x = this.time * 1.5;
+        o.userData.outer.rotation.z = this.time * 2.3;
+      } else {
+        const o = this._obj(b, () => buildEnemyBullet(b));
+        o.position.set(wx(b.x), wy(b.y), 0);
+        o.rotation.y = this.time * 5;
+      }
     }
   }
 

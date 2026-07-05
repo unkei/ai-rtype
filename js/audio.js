@@ -91,6 +91,14 @@ class AudioSys {
     });
   }
 
+  bossPhase2() {
+    // descending alert + rising shriek to signal phase 2 rage
+    for (let i = 0; i < 4; i++) {
+      this._tone({ freq: 640 - i * 60, freqEnd: 200, dur: 0.26, type: 'sawtooth', vol: 0.13, delay: i * 0.18 });
+    }
+    this._tone({ freq: 300, freqEnd: 1200, dur: 0.6, type: 'sine', vol: 0.18, delay: 0.7 });
+  }
+
   pickupOption() {
     this._tone({ freq: 660, freqEnd: 1320, dur: 0.18, type: 'sine', vol: 0.15 });
     this._tone({ freq: 880, freqEnd: 1760, dur: 0.22, type: 'sine', vol: 0.08, delay: 0.06 });

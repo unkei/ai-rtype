@@ -107,8 +107,10 @@ export class Game {
     this.player.update(dt, this.input, this.bullets);
     this.bullets.update(dt);
     const prevPhase = this.enemies.phase;
+    const prevBossP2 = this.enemies.boss?.isPhase2 ?? false;
     this.enemies.update(dt, this.player.alive ? this.player : null);
     if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
+    if (!prevBossP2 && this.enemies.boss?.isPhase2) audio.bossPhase2();
     this.options.update(dt, this.player, this.bullets);
     this.fx.update(dt);
     this.checkCollisions();
@@ -256,6 +258,13 @@ export class Game {
       ctx.fillStyle = '#ff5050';
       ctx.font = 'bold 48px monospace';
       ctx.fillText('WARNING', W / 2, H / 2 - 10);
+    }
+    if (this.enemies.boss?.isPhase2 && !this.enemies.boss.dead &&
+        Math.floor(this.time * 5) % 3 === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff3333';
+      ctx.font = 'bold 28px monospace';
+      ctx.fillText('PHASE 2', W / 2, H / 2 + 50);
     }
   }
 
