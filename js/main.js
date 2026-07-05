@@ -4,7 +4,7 @@
 import { W, H, STATE } from './config.js';
 import { InputManager } from './input.js';
 import { Player, BulletManager } from './player.js';
-import { EnemyManager } from './enemies.js';
+import { EnemyManager, MegaBoss } from './enemies.js';
 import { FX } from './fx.js';
 import { audio } from './audio.js';
 import { OptionManager } from './options.js';
@@ -139,6 +139,11 @@ export class Game {
       if (b.dead) continue;
       for (const e of this.enemies.enemies) {
         if (e.dead) continue;
+        if (e instanceof MegaBoss) {
+          this._hitMegaBoss(b, e);
+          if (b.dead) break;
+          continue;
+        }
         const cx = Math.max(b.x - b.w / 2, Math.min(e.x, b.x + b.w / 2));
         const cy = Math.max(b.y - b.h / 2, Math.min(e.y, b.y + b.h / 2));
         if ((e.x - cx) ** 2 + (e.y - cy) ** 2 > e.radius ** 2) continue;
@@ -177,11 +182,13 @@ export class Game {
     if (!p.alive || p.invuln > 0) return;
     for (const e of this.enemies.enemies) {
       if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
-        e.hp -= 2;
-        if (e.hp <= 0) {
-          e.dead = true;
-          this.addScore(e.score, e.x, e.y);
-          this.fx.explosion(e.x, e.y, { color: '#ffb060' });
+        if (!(e instanceof MegaBoss)) {
+          e.hp -= 2;
+          if (e.hp <= 0) {
+            e.dead = true;
+            this.addScore(e.score, e.x, e.y);
+            this.fx.explosion(e.x, e.y, { color: '#ffb060' });
+          }
         }
         this.killPlayer();
         return;
@@ -193,6 +200,45 @@ export class Game {
         this.killPlayer();
         return;
       }
+    }
+  }
+
+  // MegaBoss takes damage only on its three weak points; the hull soaks shots.
+  _hitMegaBoss(b, boss) {
+    for (const wp of boss.weakPoints) {
+      if (wp.dead) continue;
+      const cx = Math.max(b.x - b.w / 2, Math.min(wp.x, b.x + b.w / 2));
+      const cy = Math.max(b.y - b.h / 2, Math.min(wp.y, b.y + b.h / 2));
+      if ((wp.x - cx) ** 2 + (wp.y - cy) ** 2 > wp.r ** 2) continue;
+
+      wp.hp -= b.damage;
+      wp.hitFlash = 0.08;
+      if (b.kind === 'shot' || b.kind === 'option') {
+        b.dead = true;
+        this.fx.hit(b.x + b.w / 2, b.y);
+        audio.hit();
+      } else if (--b.pierce < 0) {
+        b.dead = true;
+      }
+      if (wp.hp <= 0) {
+        wp.dead = true;
+        this.addScore(1000, wp.x, wp.y);
+        this.fx.explosion(wp.x, wp.y, { color: '#ff80c0', count: 40, speed: 280, size: 5 });
+        audio.explode(true);
+        if (boss.weakPoints.every((w) => w.dead)) {
+          boss.dead = true;
+          this.addScore(boss.score, wp.x, wp.y);
+          this.options.onEnemyKill(wp.x, wp.y);
+          this.fx.explosion(wp.x, wp.y, { color: '#ff80c0', count: 90, speed: 380, size: 7 });
+          audio.explode(true);
+        }
+      }
+      return;
+    }
+    // armored hull: bullets stop with sparks, no damage
+    if (Math.hypot(b.x - boss.x, b.y - boss.y) < boss.radius) {
+      b.dead = true;
+      this.fx.hit(b.x, b.y);
     }
   }
 

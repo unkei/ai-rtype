@@ -184,6 +184,173 @@ export class MineLayer extends Enemy {
   }
 }
 
+// Spinner: rotating multi-armed pod, fires an 8-way ring every 1.5s.
+export class Spinner extends Enemy {
+  constructor(x, y, rank) {
+    super(x, y, rank);
+    this.hp = 3;
+    this.score = 400;
+    this.radius = 20;
+    this.speed = 80 * rank;
+    this.fireT = 1.5;
+  }
+
+  move(dt, { bullets }) {
+    this.x -= this.speed * dt;
+    this.fireT -= dt;
+    if (this.fireT <= 0 && this.x < W - 40 && this.x > 40) {
+      this.fireT = 1.5;
+      const v = 120 + 20 * this.rank;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + this.t;
+        bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 4, dead: false });
+      }
+    }
+  }
+}
+
+// Carrier: slow mothership that launches Straight escorts.
+export class Carrier extends Enemy {
+  constructor(x, y, rank) {
+    super(x, y, rank);
+    this.hp = 8;
+    this.score = 600;
+    this.radius = 26;
+    this.speed = 70 * rank;
+    this.launched = false;
+    this.spawnT = 0;
+  }
+
+  _launch(enemies) {
+    if (!enemies) return;
+    const y1 = Math.max(70, Math.min(H - 70, this.y - 60));
+    const y2 = Math.max(70, Math.min(H - 70, this.y + 60));
+    enemies.push(new Straight(this.x, y1, this.rank));
+    enemies.push(new Straight(this.x, y2, this.rank));
+  }
+
+  move(dt, { enemies }) {
+    this.x -= this.speed * dt;
+    if (!this.launched) {
+      if (this.x <= W * 0.7) {
+        this.launched = true;
+        this._launch(enemies);
+        this.spawnT = 12;
+      }
+    } else {
+      this.spawnT -= dt;
+      if (this.spawnT <= 0 && this.x > 60) {
+        this._launch(enemies);
+        this.spawnT = 12;
+      }
+    }
+  }
+}
+
+// Armored: heavy slow hull (no hitFlash — sparks only); charges when weak.
+export class Armored extends Enemy {
+  constructor(x, y, rank) {
+    super(x, y, rank);
+    this.hp = 12;
+    this.maxHp = 12;
+    this.score = 500;
+    this.radius = 22;
+    this.speed = 55 * rank;
+    this.phase = 'drift';     // drift -> charge
+    this.vx = 0;
+    this.vy = 0;
+  }
+
+  move(dt, { player }) {
+    if (this.phase === 'drift') {
+      this.x -= this.speed * dt;
+      if (this.hp < this.maxHp * 0.3 && player) {
+        const a = Math.atan2(player.y - this.y, player.x - this.x);
+        const v = 350 * this.rank;
+        this.vx = Math.cos(a) * v;
+        this.vy = Math.sin(a) * v;
+        this.phase = 'charge';
+      }
+    } else {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+    }
+  }
+}
+
+// MegaBoss: screen-filling fortress parked off the right edge. Only its three
+// weak points take damage (handled specially in main.js checkCollisions).
+export class MegaBoss extends Enemy {
+  constructor(rank) {
+    super(W + 320, H / 2, rank);
+    this.radius = 200;
+    this.score = 15000;
+    const wpHp = Math.round(40 * rank);
+    this.weakPoints = [H / 4, H / 2, (H * 3) / 4].map((y) => ({
+      x: this.x - 180, y, r: 26, hp: wpHp, maxHp: wpHp, hitFlash: 0, dead: false,
+    }));
+    this.maxHp = wpHp * 3;
+    this.hp = this.maxHp;     // display sum, recomputed each frame
+    this.phase = 'enter';
+    this.attackT = 1.5;
+    this.attackIdx = 0;
+    this.spiralA = 0;
+  }
+
+  get isPhase2() {
+    return this.weakPoints.some((wp) => wp.dead);
+  }
+
+  move(dt, { player, bullets }) {
+    for (const wp of this.weakPoints) {
+      wp.hitFlash = Math.max(0, wp.hitFlash - dt);
+      wp.x = this.x - 180;
+    }
+    this.hp = this.weakPoints.reduce((s, wp) => s + Math.max(wp.hp, 0), 0);
+
+    if (this.phase === 'enter') {
+      this.x -= 90 * dt;
+      if (this.x <= W + 100) {
+        this.x = W + 100;
+        this.phase = 'fight';
+      }
+      return;
+    }
+
+    this.attackT -= dt;
+    if (this.attackT > 0 || !player) return;
+
+    const mul = this.isPhase2 ? 0.6 : 1;   // phase 2: attacks 40% faster
+    const kind = this.attackIdx % 3;
+    this.attackIdx++;
+
+    if (kind === 0) {
+      // horizontal beam sweep: 3 parallel bullet trains (top / mid / bottom)
+      for (const y of [H * 0.18, H * 0.5, H * 0.82]) {
+        for (let i = 0; i < 4; i++) {
+          bullets.push({ x: this.x - 190 + i * 28, y, vx: -800, vy: 0, r: 6, dead: false });
+        }
+      }
+      this.attackT = Math.max(2.4 / this.rank, 1.0) * mul;
+    } else if (kind === 1) {
+      // rotating spiral volley
+      const v = 150 + 30 * this.rank;
+      for (let i = 0; i < 12; i++) {
+        const a = this.spiralA + (i / 12) * Math.PI * 2;
+        bullets.push({ x: this.x - 180, y: this.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 4, dead: false });
+      }
+      this.spiralA += 0.5;
+      this.attackT = Math.max(1.6 / this.rank, 0.7) * mul;
+    } else {
+      // large aimed shot
+      const a = Math.atan2(player.y - this.y, player.x - (this.x - 180));
+      const v = 220 + 40 * this.rank;
+      bullets.push({ x: this.x - 180, y: this.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 12, dead: false });
+      this.attackT = Math.max(2.0 / this.rank, 0.8) * mul;
+    }
+  }
+}
+
 // Loop-end boss: large core ship with spread / ring / beam attacks.
 // Phase 2 activates below 50% HP for faster, more varied attacks.
 export class Boss extends Enemy {
@@ -264,6 +431,7 @@ export class EnemyManager {
     this.phase = 'waves';     // waves → warning → boss → (loop++) waves
     this.boss = null;
     this.warnT = 0;
+    this.scrollDir = { x: -1, y: 0 };   // background scroll (render3d stars)
   }
 
   get rank() {
@@ -275,13 +443,16 @@ export class EnemyManager {
     return [
       { t:  1.0, fn: (m) => m._row(Straight, 5, rnd(120, H - 120)) },
       { t:  5.0, fn: (m) => m._spread(Sine, 3) },
+      { t:  8.0, fn: (m) => m._spread(Spinner, 2) },
       { t:  9.0, fn: (m) => { m._turret(true); m._turret(false); } },
       { t: 13.0, fn: (m) => m._darts(3) },
       { t: 16.0, fn: (m) => { m._row(Straight, 4, rnd(120, H - 120)); m._spread(Sine, 2); } },
+      { t: 18.0, fn: (m) => m._spread(Carrier, 1) },
       { t: 20.0, fn: (m) => m._spread(Homing, 2) },
       { t: 23.0, fn: (m) => { m._turret(Math.random() < 0.5); m._darts(2); } },
       { t: 27.0, fn: (m) => { m._row(Straight, 6, rnd(120, H - 120)); m._turret(true); m._turret(false); } },
       { t: 31.0, fn: (m) => { m._spread(Sine, 3); m._spread(Homing, 2); } },
+      { t: 33.0, fn: (m) => m._spread(Armored, 2) },
       { t: 35.0, fn: (m) => { m._spread(MineLayer, 2); m._darts(2); } },
       { t: 39.0, fn: (m) => { m._row(Straight, 5, rnd(120, H - 120)); m._spread(Homing, 3); } },
       { t: 43.0, fn: (m) => { m._turret(true); m._turret(false); m._darts(3); } },
@@ -329,7 +500,9 @@ export class EnemyManager {
       } else if (this.phase === 'warning') {
         this.warnT -= dt;
         if (this.warnT <= 0) {
-          this.boss = new Boss(this.rank);
+          this.boss = this.loop % 3 === 2
+            ? new MegaBoss(this.rank)
+            : new Boss(this.rank);
           this.enemies.push(this.boss);
           this.phase = 'boss';
         }
@@ -341,11 +514,16 @@ export class EnemyManager {
           this.idx = 0;
           this.script = this._buildScript();
           this.phase = 'waves';
+          const dirs = [
+            { x: -1, y: 0 }, { x: 1, y: 0 },
+            { x: -0.8, y: -0.5 }, { x: -0.8, y: 0.5 },
+          ];
+          this.scrollDir = dirs[Math.floor(Math.random() * dirs.length)];
         }
       }
     }
 
-    const ctxGame = { player, bullets: this.bullets };
+    const ctxGame = { player, bullets: this.bullets, enemies: this.enemies };
     for (const e of this.enemies) e.update(dt, ctxGame);
     this.enemies = this.enemies.filter((e) => !e.dead);
 
