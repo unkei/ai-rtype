@@ -14,6 +14,41 @@ import { Straight, Sine, Dart, Turret, Boss, Homing, MineLayer, Spinner, Carrier
 const wx = (x) => x - W / 2;
 const wy = (y) => H / 2 - y;
 
+// Stage-based visual environments:
+// 0 = Deep Space, 1 = Enemy Carrier Interior, 2+ = Alien Planet Surface
+const ENVS = [
+  {
+    bg:        new THREE.Color(0x05070f),
+    fog:       new THREE.Color(0x05070f),
+    fogNear:   750, fogFar: 1500,
+    ambColor:  new THREE.Color(0x8090b0), ambInt:  1.3,
+    sunColor:  new THREE.Color(0xffffff), sunInt:  1.8,
+    showPlanet: true,
+    planetColor: new THREE.Color(0x24455f),
+    planetGlowColor: new THREE.Color(0x4f9ec4),
+  },
+  {
+    bg:        new THREE.Color(0x0c0407),
+    fog:       new THREE.Color(0x180608),
+    fogNear:   260, fogFar: 720,
+    ambColor:  new THREE.Color(0xb03020), ambInt:  1.1,
+    sunColor:  new THREE.Color(0xff5010), sunInt:  2.5,
+    showPlanet: false,
+    planetColor: new THREE.Color(0x24455f),
+    planetGlowColor: new THREE.Color(0x4f9ec4),
+  },
+  {
+    bg:        new THREE.Color(0x0c0a04),
+    fog:       new THREE.Color(0x1e1208),
+    fogNear:   450, fogFar: 1050,
+    ambColor:  new THREE.Color(0xa07030), ambInt:  1.6,
+    sunColor:  new THREE.Color(0xffcc60), sunInt:  2.0,
+    showPlanet: true,
+    planetColor: new THREE.Color(0x5f3a18),
+    planetGlowColor: new THREE.Color(0xc47840),
+  },
+];
+
 const FOV = 45;
 // distance at which the 960×540 plane at z=0 exactly fills the view
 const CAM_DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
@@ -311,10 +346,11 @@ export class Render3D {
     this.camera = new THREE.PerspectiveCamera(FOV, W / H, 1, 3000);
     this.camera.position.set(0, 0, CAM_DIST);
 
-    this.scene.add(new THREE.AmbientLight(0x8090b0, 1.3));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-    sun.position.set(200, 300, 400);
-    this.scene.add(sun);
+    this._ambLight = new THREE.AmbientLight(0x8090b0, 1.3);
+    this.scene.add(this._ambLight);
+    this._sun = new THREE.DirectionalLight(0xffffff, 1.8);
+    this._sun.position.set(200, 300, 400);
+    this.scene.add(this._sun);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -389,16 +425,17 @@ export class Render3D {
   // ------------------------------------------------------------- scenery
 
   _initPlanet() {
-    const planet = new THREE.Mesh(GEO.planet, MAT.planet);
+    const planet = new THREE.Mesh(GEO.planet, MAT.planet.clone());
     planet.scale.setScalar(270);
     planet.position.set(400, 270, -800);
     this.scene.add(planet);
     this._planet = planet;
 
-    const glow = new THREE.Mesh(GEO.planet, MAT.planetGlow);
+    const glow = new THREE.Mesh(GEO.planet, MAT.planetGlow.clone());
     glow.scale.setScalar(286);
     glow.position.copy(planet.position);
     this.scene.add(glow);
+    this._planetGlow = glow;
   }
 
   _rockName() {
@@ -753,6 +790,31 @@ export class Render3D {
     }
   }
 
+  // -------------------------------------------------- environment transitions
+
+  _updateEnvironment(dt, game) {
+    const loop = (game.state === STATE.PLAYING || game.state === STATE.GAMEOVER)
+      ? game.enemies.loop : 0;
+    const env = ENVS[Math.min(loop, ENVS.length - 1)];
+    const k = Math.min(dt * 1.8, 1);  // ~0.55s crossfade
+
+    this.scene.background.lerp(env.bg, k);
+    this.scene.fog.color.lerp(env.fog, k);
+    this.scene.fog.near += (env.fogNear - this.scene.fog.near) * k;
+    this.scene.fog.far  += (env.fogFar  - this.scene.fog.far)  * k;
+    this._ambLight.color.lerp(env.ambColor, k);
+    this._ambLight.intensity += (env.ambInt - this._ambLight.intensity) * k;
+    this._sun.color.lerp(env.sunColor, k);
+    this._sun.intensity += (env.sunInt - this._sun.intensity) * k;
+
+    this._planet.visible = env.showPlanet;
+    this._planetGlow.visible = env.showPlanet;
+    if (env.showPlanet) {
+      this._planet.material.color.lerp(env.planetColor, k);
+      this._planetGlow.material.color.lerp(env.planetGlowColor, k);
+    }
+  }
+
   // ----------------------------------------------------------------- frame
 
   update(dt, game) {
@@ -761,9 +823,10 @@ export class Render3D {
     this._scrollTerrain(dt);
     this._scrollDrifters(dt);
     this._planet.rotation.y += dt * 0.02;
+    this._updateEnvironment(dt, game);
 
     this._live.clear();
-    if (game.state !== STATE.TITLE) {
+    if (game.state === STATE.PLAYING || game.state === STATE.GAMEOVER) {
       this._syncPlayer(game);
       this._syncEnemies(game);
       this._syncBullets(game);

@@ -20,7 +20,7 @@ export class Game {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.input = new InputManager(canvas);
-    this.state = STATE.TITLE;
+    this.state = STATE.SPLASH;
     this.time = 0;            // global clock for blink effects
     this.stateTime = 0;       // time since last state change
 
@@ -98,14 +98,23 @@ export class Game {
     if (this.input.firePressed || this.input.startPressed) audio.unlock();
 
     switch (this.state) {
+      case STATE.SPLASH:   this.updateSplash(dt); break;
       case STATE.TITLE:    this.updateTitle(dt); break;
       case STATE.PLAYING:  this.updatePlaying(dt); break;
       case STATE.GAMEOVER: this.updateGameover(dt); break;
     }
   }
 
+  updateSplash(dt) {
+    // auto-advance after 5.5s or skip on fire
+    if (this.stateTime > 5.5 || this.input.firePressed || this.input.startPressed) {
+      this.setState(STATE.TITLE);
+    }
+  }
+
   updateTitle(dt) {
-    if (this.input.firePressed || this.input.startPressed) {
+    // brief lockout so SPLASH→TITLE transition doesn't immediately start the game
+    if (this.stateTime > 0.3 && (this.input.firePressed || this.input.startPressed)) {
       this.startGame();
     }
   }
@@ -290,6 +299,7 @@ export class Game {
     ctx.clearRect(0, 0, W, H);
 
     switch (this.state) {
+      case STATE.SPLASH:   this.renderSplash(ctx); break;
       case STATE.TITLE:    this.renderTitle(ctx); break;
       case STATE.PLAYING:  this.renderPlaying(ctx); break;
       case STATE.GAMEOVER: this.renderGameover(ctx); break;
@@ -298,24 +308,91 @@ export class Game {
     this.input.renderTouchUI(ctx);
   }
 
-  renderTitle(ctx) {
+  renderSplash(ctx) {
+    const t = this.stateTime;
     ctx.textAlign = 'center';
+
+    // "UNNO STUDIO presents" — fade in 0-0.8s, hold, fade out 2.0-2.8s
+    const a1 = t < 0.8 ? t / 0.8 : t < 2.0 ? 1.0 : Math.max(0, 1.0 - (t - 2.0) / 0.8);
+    if (a1 > 0.01) {
+      ctx.globalAlpha = a1;
+      ctx.fillStyle = '#8fa8cc';
+      ctx.font = '22px monospace';
+      ctx.fillText('UNNO STUDIO presents', W / 2, H / 2 - 20);
+      ctx.globalAlpha = 1;
+    }
+
+    // "AI R-TYPE" — fade in from t=2.5
+    const a2 = t < 2.5 ? 0 : Math.min(1, (t - 2.5) / 1.5);
+    if (a2 > 0.01) {
+      ctx.globalAlpha = a2;
+      const pulse = a2 >= 1 ? 0.8 + Math.sin(t * 1.5) * 0.2 : 1;
+      ctx.shadowBlur = 24 * a2 * pulse;
+      ctx.shadowColor = '#7df9ff';
+      ctx.fillStyle = '#8fd0ff';
+      ctx.font = 'bold 72px monospace';
+      ctx.fillText('AI R-TYPE', W / 2, H / 2 + 28);
+      ctx.shadowBlur = 0;
+
+      if (a2 > 0.7) {
+        ctx.globalAlpha = (a2 - 0.7) / 0.3;
+        ctx.fillStyle = '#4a6a8a';
+        ctx.font = '20px monospace';
+        ctx.fillText('— FABLE EDITION —', W / 2, H / 2 + 72);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // skip hint
+    if (t > 1.5 && Math.floor(t * 2) % 2 === 0) {
+      ctx.fillStyle = 'rgba(70,97,138,0.55)';
+      ctx.font = '14px monospace';
+      ctx.fillText('PRESS FIRE TO SKIP', W / 2, H - 52);
+    }
+  }
+
+  renderTitle(ctx) {
+    const t = this.time;
+    ctx.textAlign = 'center';
+
+    // Decorative framing lines
+    ctx.strokeStyle = 'rgba(143,208,255,0.28)';
+    ctx.lineWidth = 1;
+    for (const [dx, y] of [[-280, H / 2 - 92], [280, H / 2 - 92]]) {
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + dx, y);
+      ctx.lineTo(W / 2 - dx, y);
+      ctx.stroke();
+    }
+
+    // "AI R-TYPE" with pulsing glow
+    const pulse = 0.8 + Math.sin(t * 1.5) * 0.2;
+    ctx.shadowBlur = 22 * pulse;
+    ctx.shadowColor = '#7df9ff';
     ctx.fillStyle = '#8fd0ff';
     ctx.font = 'bold 72px monospace';
-    ctx.fillText('AI R-TYPE', W / 2, H / 2 - 60);
+    ctx.fillText('AI R-TYPE', W / 2, H / 2 - 55);
+    ctx.shadowBlur = 0;
+
     ctx.font = '20px monospace';
     ctx.fillStyle = '#5a7aa0';
-    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 - 18);
+    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 - 12);
+
     if (this.hiScore > 0) {
       ctx.fillStyle = '#ffe9a0';
       ctx.font = '18px monospace';
-      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 18);
+      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 24);
     }
-    if (Math.floor(this.time * 2) % 2 === 0) {
+
+    if (Math.floor(t * 2) % 2 === 0) {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ffffff';
       ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
-      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 70);
+      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 72);
+      ctx.shadowBlur = 0;
     }
+
     ctx.font = '15px monospace';
     ctx.fillStyle = '#46618a';
     ctx.fillText('MOVE: ARROWS / WASD · FIRE: Z X SPACE (HOLD = CHARGE) · FORCE: V', W / 2, H - 70);
@@ -343,22 +420,42 @@ export class Game {
   renderGameover(ctx) {
     this.fx.renderPopups(ctx);
     this.renderHud(ctx);
+
+    // Pulsing red vignette overlay
+    const vgAlpha = 0.22 + Math.sin(this.time * 2.5) * 0.1;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, 560);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, `rgba(190,20,20,${vgAlpha})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
     ctx.textAlign = 'center';
+
+    // "GAME OVER" with glow
+    ctx.shadowBlur = 36;
+    ctx.shadowColor = '#ff3030';
     ctx.fillStyle = '#ff6060';
-    ctx.font = 'bold 56px monospace';
-    ctx.fillText('GAME OVER', W / 2, H / 2 - 30);
+    ctx.font = 'bold 64px monospace';
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 28);
+    ctx.shadowBlur = 0;
+
     ctx.fillStyle = '#dce8ff';
     ctx.font = '24px monospace';
-    ctx.fillText(`SCORE ${String(this.score).padStart(7, '0')}`, W / 2, H / 2 + 24);
+    ctx.fillText(`SCORE ${String(this.score).padStart(7, '0')}`, W / 2, H / 2 + 28);
+
     if (this.newRecord && Math.floor(this.time * 3) % 2 === 0) {
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = '#ffe9a0';
       ctx.fillStyle = '#ffe9a0';
       ctx.font = 'bold 22px monospace';
-      ctx.fillText('★ NEW RECORD! ★', W / 2, H / 2 + 60);
+      ctx.fillText('★ NEW RECORD! ★', W / 2, H / 2 + 66);
+      ctx.shadowBlur = 0;
     }
+
     if (this.stateTime > 1 && Math.floor(this.time * 2) % 2 === 0) {
       ctx.fillStyle = '#9ecbff';
       ctx.font = '18px monospace';
-      ctx.fillText('PRESS FIRE / TAP TO CONTINUE', W / 2, H / 2 + 104);
+      ctx.fillText('PRESS FIRE / TAP TO CONTINUE', W / 2, H / 2 + 108);
     }
   }
 
