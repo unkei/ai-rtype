@@ -185,6 +185,9 @@ export class OptionManager {
           bullets.spawnOptionShot(u.x + 18, u.y);
           bullets.spawnOptionShotBack(u.x - 18, u.y);
         }
+        // all modes also fire up and down
+        bullets.spawnOptionShotUp(u.x, u.y - 8);
+        bullets.spawnOptionShotDown(u.x, u.y + 8);
       }
     }
 

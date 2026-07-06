@@ -9,21 +9,24 @@ const SHOT_COOLDOWN = 0.12;
 const CHARGE_MIN = 0.4;       // hold time before a release becomes a beam
 
 class Bullet {
-  constructor(x, y, vx, w, h, damage, pierce, kind) {
+  constructor(x, y, vx, w, h, damage, pierce, kind, vy = 0) {
     this.x = x;
     this.y = y;
     this.vx = vx;
+    this.vy = vy;
     this.w = w;
     this.h = h;
     this.damage = damage;
     this.pierce = pierce;     // how many extra enemies a beam can pass through
-    this.kind = kind;         // 'shot' | 'beam'
+    this.kind = kind;         // 'shot' | 'beam' | 'option'
     this.dead = false;
   }
 
   update(dt) {
     this.x += this.vx * dt;
+    this.y += this.vy * dt;
     if (this.x - this.w / 2 > W + 40 || this.x + this.w / 2 < -40) this.dead = true;
+    if (this.vy !== 0 && (this.y < -30 || this.y > H + 30)) this.dead = true;
   }
 }
 
@@ -42,6 +45,14 @@ export class BulletManager {
 
   spawnOptionShotBack(x, y) {
     this.list.push(new Bullet(x, y, -480, 10, 4, 1, 0, 'option'));
+  }
+
+  spawnOptionShotUp(x, y) {
+    this.list.push(new Bullet(x, y, 120, 4, 10, 1, 0, 'option', -520));
+  }
+
+  spawnOptionShotDown(x, y) {
+    this.list.push(new Bullet(x, y, 120, 4, 10, 1, 0, 'option', 520));
   }
 
   spawnBeam(x, y, level) {
