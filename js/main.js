@@ -88,6 +88,7 @@ export class Game {
     this.setState(STATE.PLAYING);
     audio.start();
     audio.bgmStage();
+    this._vibrate(50);
   }
 
   update(dt) {
@@ -125,10 +126,19 @@ export class Game {
     const prevPhase = this.enemies.phase;
     const prevBossP2 = this.enemies.boss?.isPhase2 ?? false;
     this.enemies.update(dt, this.player.alive ? this.player : null);
-    if (this.enemies.phase === 'warning' && prevPhase !== 'warning') audio.warning();
+    if (this.enemies.phase === 'warning' && prevPhase !== 'warning') {
+      audio.warning();
+      this._vibrate([120, 60, 120, 60, 120]);
+    }
     if (this.enemies.phase === 'boss' && prevPhase === 'warning') audio.bgmBoss();
-    if (this.enemies.phase === 'waves' && prevPhase === 'boss') audio.bgmStage();
-    if (!prevBossP2 && this.enemies.boss?.isPhase2) audio.bossPhase2();
+    if (this.enemies.phase === 'waves' && prevPhase === 'boss') {
+      audio.bgmStage();
+      this._vibrate([80, 40, 80, 40, 300]);
+    }
+    if (!prevBossP2 && this.enemies.boss?.isPhase2) {
+      audio.bossPhase2();
+      this._vibrate([200, 80, 200]);
+    }
     this.options.update(dt, this.player, this.bullets, this.input);
     this.terrain.update(dt, this.enemies.loop);
     this.fx.update(dt);
@@ -277,6 +287,11 @@ export class Game {
     p.alive = false;
     this.lives--;
     this.respawnTimer = 1.6;
+    this._vibrate(180);
+  }
+
+  _vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
   }
 
   updateGameover(dt) {
@@ -353,35 +368,36 @@ export class Game {
 
   renderTitle(ctx) {
     const t = this.time;
+    const fade = Math.min(1, this.stateTime / 0.5);
+    ctx.save();
+    ctx.globalAlpha = fade;
     ctx.textAlign = 'center';
 
-    // Decorative framing lines
+    // Decorative framing line
     ctx.strokeStyle = 'rgba(143,208,255,0.28)';
     ctx.lineWidth = 1;
-    for (const [dx, y] of [[-280, H / 2 - 92], [280, H / 2 - 92]]) {
-      ctx.beginPath();
-      ctx.moveTo(W / 2 + dx, y);
-      ctx.lineTo(W / 2 - dx, y);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 280, H / 2 - 42);
+    ctx.lineTo(W / 2 + 280, H / 2 - 42);
+    ctx.stroke();
 
-    // "AI R-TYPE" with pulsing glow
+    // "AI R-TYPE" with pulsing glow — same vertical position as splash for smooth transition
     const pulse = 0.8 + Math.sin(t * 1.5) * 0.2;
     ctx.shadowBlur = 22 * pulse;
     ctx.shadowColor = '#7df9ff';
     ctx.fillStyle = '#8fd0ff';
     ctx.font = 'bold 72px monospace';
-    ctx.fillText('AI R-TYPE', W / 2, H / 2 - 55);
+    ctx.fillText('AI R-TYPE', W / 2, H / 2 + 28);
     ctx.shadowBlur = 0;
 
     ctx.font = '20px monospace';
     ctx.fillStyle = '#5a7aa0';
-    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 - 12);
+    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 + 72);
 
     if (this.hiScore > 0) {
       ctx.fillStyle = '#ffe9a0';
       ctx.font = '18px monospace';
-      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 24);
+      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 108);
     }
 
     if (Math.floor(t * 2) % 2 === 0) {
@@ -389,13 +405,14 @@ export class Game {
       ctx.shadowColor = '#ffffff';
       ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
-      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 72);
+      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 148);
       ctx.shadowBlur = 0;
     }
 
     ctx.font = '15px monospace';
     ctx.fillStyle = '#46618a';
-    ctx.fillText('MOVE: ARROWS / WASD · FIRE: Z X SPACE (HOLD = CHARGE) · FORCE: V', W / 2, H - 70);
+    ctx.fillText('MOVE: ARROWS / WASD · FIRE: Z X SPACE (HOLD = CHARGE) · FORCE: V', W / 2, H - 52);
+    ctx.restore();
   }
 
   renderPlaying(ctx) {
