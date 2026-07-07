@@ -151,6 +151,11 @@ const MAT = {
   optCapsule: new THREE.MeshBasicMaterial({ color: 0xb59ae0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }),
   optUnit:    new THREE.MeshBasicMaterial({ color: 0x9060ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
   optShot:    new THREE.MeshBasicMaterial({ color: 0xcc88ff }),
+  bitUnit:    new THREE.MeshBasicMaterial({ color: 0x60c0ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+
+  missile:    new THREE.MeshBasicMaterial({ color: 0x60e0ff }),
+  flameCore:  new THREE.MeshBasicMaterial({ color: 0xffb060 }),
+  flameAura:  new THREE.MeshBasicMaterial({ color: 0xff8030, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
 
   shot:       new THREE.MeshBasicMaterial({ color: 0x7df9ff }),
   beam:       new THREE.MeshBasicMaterial({ color: 0xbfffff }),
@@ -312,6 +317,17 @@ function buildBullet(b) {
     const core = new THREE.Mesh(GEO.sphere, MAT.optShot);
     core.scale.setScalar(6);
     g.add(core);
+  } else if (b.kind === 'missile') {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(5, 16, 6), MAT.missile);
+    cone.rotation.z = -Math.PI / 2;
+    g.add(cone);
+  } else if (b.kind === 'flame') {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(7, 22, 6), MAT.flameCore);
+    cone.rotation.z = -Math.PI / 2;
+    g.add(cone);
+    const aura = new THREE.Mesh(GEO.sphere, MAT.flameAura);
+    aura.scale.setScalar(11);
+    g.add(aura);
   } else {
     const core = new THREE.Mesh(GEO.box, MAT.shot);
     core.scale.set(18, 5, 5);
@@ -694,6 +710,10 @@ export class Render3D {
       if (b.dead) continue;
       const o = this._obj(b, () => buildBullet(b));
       o.position.set(wx(b.x), wy(b.y), 0);
+      if (b.kind === 'missile' || b.kind === 'flame') {
+        const vy = b.phase === 'seek' ? b.dir * 320 : 0;
+        o.rotation.z = -Math.atan2(vy, 340);
+      }
     }
     for (const b of game.enemies.bullets) {
       if (b.dead) continue;
@@ -741,20 +761,27 @@ export class Render3D {
     }
 
     for (const u of game.options.units) {
+      const isBit = u.kind === 'bit';
       const o = this._obj(u, () => {
         const g = new THREE.Group();
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(13, 2.5, 8, 24),
-          MAT.optUnit,
+          isBit ? MAT.bitUnit : MAT.optUnit,
         );
-        ring.userData.origMat = MAT.optUnit;
+        ring.userData.origMat = isBit ? MAT.bitUnit : MAT.optUnit;
         g.add(ring);
         const core = new THREE.Mesh(GEO.sphere, MAT.optShot);
         core.scale.setScalar(6);
         core.userData.origMat = MAT.optShot;
         g.add(core);
         g.userData.ring = ring;
-        g.add(new THREE.PointLight(0x9060ff, 700, 180));
+        if (isBit) {
+          g.scale.setScalar(0.55);
+          g.add(new THREE.PointLight(0x60c0ff, 300, 100));
+        } else {
+          g.scale.setScalar(1.2);
+          g.add(new THREE.PointLight(0x9060ff, 700, 180));
+        }
         return g;
       });
       o.position.set(wx(u.x), wy(u.y), 10);
