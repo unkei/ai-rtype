@@ -355,6 +355,7 @@ export class Game {
     // Decorative framing line
     ctx.strokeStyle = 'rgba(143,208,255,0.28)';
     ctx.lineWidth = 1;
+    // line cuts through the title text (intentional overlap)
     ctx.beginPath();
     ctx.moveTo(W / 2 - 280, H / 2 - 42);
     ctx.lineTo(W / 2 + 280, H / 2 - 42);
@@ -365,17 +366,17 @@ export class Game {
     ctx.shadowColor = '#7df9ff';
     ctx.fillStyle = '#8fd0ff';
     ctx.font = 'bold 72px monospace';
-    ctx.fillText('AI R-TYPE', W / 2, H / 2 + 28);
+    ctx.fillText('AI R-TYPE', W / 2, H / 2 - 10);
     ctx.shadowBlur = 0;
 
     ctx.font = '20px monospace';
     ctx.fillStyle = '#5a7aa0';
-    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 + 72);
+    ctx.fillText('— FABLE EDITION —', W / 2, H / 2 + 34);
 
     if (this.hiScore > 0) {
       ctx.fillStyle = '#ffe9a0';
       ctx.font = '18px monospace';
-      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 108);
+      ctx.fillText(`HI-SCORE ${String(this.hiScore).padStart(7, '0')}`, W / 2, H / 2 + 70);
     }
 
     if (Math.floor(t * 2) % 2 === 0) {
@@ -383,7 +384,7 @@ export class Game {
       ctx.shadowColor = '#ffffff';
       ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
-      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 148);
+      ctx.fillText('PRESS FIRE / TAP TO START', W / 2, H / 2 + 110);
       ctx.shadowBlur = 0;
     }
 
