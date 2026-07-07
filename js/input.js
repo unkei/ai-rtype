@@ -108,6 +108,16 @@ export class InputManager {
     for (const t of e.changedTouches) {
       if (this._stick && t.identifier === this._stick.id) {
         const p = this._logical(t);
+        const dx = p.x - this._stick.ox;
+        const dy = p.y - this._stick.oy;
+        const len = Math.hypot(dx, dy);
+        // Follow joystick: shift origin when finger moves beyond the stick radius,
+        // so the ring always stays visible under the finger.
+        if (len > STICK_RADIUS) {
+          const excess = len - STICK_RADIUS;
+          this._stick.ox += (dx / len) * excess;
+          this._stick.oy += (dy / len) * excess;
+        }
         this._stick.dx = p.x - this._stick.ox;
         this._stick.dy = p.y - this._stick.oy;
       }

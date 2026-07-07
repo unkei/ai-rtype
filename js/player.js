@@ -104,12 +104,18 @@ export class Player {
     this.invuln = 2;
     this.charging = false;
     this.chargeTime = 0;
+    this._justRespawned = true;
   }
 
   update(dt, input, bullets) {
     this.time += dt;
     if (!this.alive) return;
     if (this.invuln > 0) this.invuln -= dt;
+
+    if (this._justRespawned) {
+      this._justRespawned = false;
+      if (input.fire) this.charging = true;
+    }
 
     this.x += input.moveX * SPEED * dt;
     this.y += input.moveY * SPEED * dt;
