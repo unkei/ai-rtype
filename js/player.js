@@ -8,6 +8,15 @@ const MARGIN_Y = 58;          // keep clear of the terrain strips
 const SHOT_COOLDOWN = 0.12;
 const CHARGE_MIN = 0.4;       // hold time before a release becomes a beam
 
+// Wall-crawling missile tuning.
+const MISSILE_SEEK_VX = 260;
+const MISSILE_SEEK_VY = 320;
+const MISSILE_CRAWL_VX = 340;
+const MISSILE_CRAWL_CLIMB = 1400;  // px/s vertical adjustment while crawling
+const MISSILE_LEAD = 32;           // look-ahead so climbs start before the wall face
+const MISSILE_FLOOR_Y = H - 48;
+const MISSILE_CEIL_Y = 48;
+
 class Bullet {
   constructor(x, y, vx, w, h, damage, pierce, kind, vy = 0) {
     this.x = x;
@@ -18,15 +27,88 @@ class Bullet {
     this.h = h;
     this.damage = damage;
     this.pierce = pierce;     // how many extra enemies a beam can pass through
-    this.kind = kind;         // 'shot' | 'beam' | 'option'
+    this.kind = kind;         // 'shot' | 'beam' | 'option' | 'missile' | 'flame'
     this.dead = false;
+    if (kind === 'missile' || kind === 'flame') {
+      this.phase = 'seek';    // 'seek' | 'crawl'
+      this.dir = 0;           // -1 crawls the ceiling, +1 crawls the floor
+    }
   }
 
-  update(dt) {
+  update(dt, terrain) {
+    if (this.kind === 'missile' || this.kind === 'flame') {
+      this._updateMissile(dt, terrain);
+      return;
+    }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (this.x - this.w / 2 > W + 40 || this.x + this.w / 2 < -40) this.dead = true;
     if (this.vy !== 0 && (this.y < -30 || this.y > H + 30)) this.dead = true;
+  }
+
+  _updateMissile(dt, terrain) {
+    if (this.phase === 'seek') {
+      this.x += MISSILE_SEEK_VX * dt;
+      this.y += this.dir * MISSILE_SEEK_VY * dt;
+
+      if (terrain) {
+        if (this.dir > 0 && this.y >= MISSILE_FLOOR_Y) {
+          this.y = MISSILE_FLOOR_Y;
+          this.phase = 'crawl';
+        } else if (this.dir < 0 && this.y <= MISSILE_CEIL_Y) {
+          this.y = MISSILE_CEIL_Y;
+          this.phase = 'crawl';
+        } else if (terrain.hitTest(this.x, this.y, 3)) {
+          const seg = terrain.segments.find((s) =>
+            !s.dead && this.x >= s.x && this.x <= s.x + s.w);
+          if (seg) {
+            this.y = this.dir > 0 ? seg.y - 4 : seg.y + seg.h + 4;
+            this.phase = 'crawl';
+          }
+        }
+      } else {
+        // No terrain (e.g. test pages) — keep flying straight.
+        if (this.dir > 0 && this.y >= MISSILE_FLOOR_Y) this.y = MISSILE_FLOOR_Y;
+        if (this.dir < 0 && this.y <= MISSILE_CEIL_Y) this.y = MISSILE_CEIL_Y;
+      }
+    } else {
+      // crawl
+      this.x += MISSILE_CRAWL_VX * dt;
+
+      if (terrain) {
+        let targetY = this.dir > 0 ? MISSILE_FLOOR_Y : MISSILE_CEIL_Y;
+        if (this.dir > 0) {
+          let best = null;
+          for (const s of terrain.segments) {
+            if (s.dead) continue;
+            if (this.x + MISSILE_LEAD < s.x || this.x - 4 > s.x + s.w) continue;
+            if (s.y + s.h > H - 170) {
+              if (best === null || s.y < best) best = s.y;
+            }
+          }
+          if (best !== null) targetY = best - 4;
+        } else {
+          let best = null;
+          for (const s of terrain.segments) {
+            if (s.dead) continue;
+            if (this.x + MISSILE_LEAD < s.x || this.x - 4 > s.x + s.w) continue;
+            if (s.y < 170) {
+              const bottom = s.y + s.h;
+              if (best === null || bottom > best) best = bottom;
+            }
+          }
+          if (best !== null) targetY = best + 4;
+        }
+
+        const dy = targetY - this.y;
+        const step = Math.max(-MISSILE_CRAWL_CLIMB * dt, Math.min(MISSILE_CRAWL_CLIMB * dt, dy));
+        this.y += step;
+
+        if (terrain.hitTest(this.x, this.y, 2)) this.dead = true;
+      }
+
+      if (this.x > W + 40) this.dead = true;
+    }
   }
 }
 
@@ -64,8 +146,19 @@ export class BulletManager {
     this.list.push(new Bullet(x, y, 900, 36, spec.h, spec.damage, spec.pierce, 'beam'));
   }
 
-  update(dt) {
-    for (const b of this.list) b.update(dt);
+  // Wall-crawling missile (or flame missile at level 2): seeks up/down to the
+  // nearest surface then crawls along it, hugging terrain as it scrolls past.
+  spawnMissile(x, y, dir, level) {
+    const isFlame = level >= 2;
+    const b = isFlame
+      ? new Bullet(x, y, 0, 20, 10, 4, 2, 'flame')
+      : new Bullet(x, y, 0, 14, 6, 2, 0, 'missile');
+    b.dir = dir;
+    this.list.push(b);
+  }
+
+  update(dt, terrain) {
+    for (const b of this.list) b.update(dt, terrain);
     this.list = this.list.filter((b) => !b.dead);
   }
 

@@ -122,7 +122,7 @@ export class Game {
 
   updatePlaying(dt) {
     this.player.update(dt, this.input, this.bullets);
-    this.bullets.update(dt);
+    this.bullets.update(dt, this.terrain);
     const prevPhase = this.enemies.phase;
     const prevBossP2 = this.enemies.boss?.isPhase2 ?? false;
     this.enemies.update(dt, this.player.alive ? this.player : null);
@@ -142,7 +142,7 @@ export class Game {
     this.options.update(dt, this.player, this.bullets, this.input);
     this.terrain.update(dt, this.enemies.loop);
     this.fx.update(dt);
-    this.checkCollisions();
+    this.checkCollisions(dt);
 
     if (!this.player.alive) {
       this.respawnTimer -= dt;
@@ -156,9 +156,11 @@ export class Game {
     }
   }
 
-  checkCollisions() {
-    // bullets vs terrain (both sides' shots are stopped by rock)
+  checkCollisions(dt) {
+    // bullets vs terrain (both sides' shots are stopped by rock) — wall-crawling
+    // missiles/flames handle their own terrain interaction in BulletManager.
     for (const b of this.bullets.list) {
+      if (b.kind === 'missile' || b.kind === 'flame') continue;
       if (!b.dead && this.terrain.hitTest(b.x, b.y, 3)) {
         b.dead = true;
         this.fx.hit(b.x, b.y);
@@ -210,6 +212,36 @@ export class Game {
 
     // option units intercept enemy bullets
     this.options.blockEnemyBullets(this.enemies.bullets, this.fx, audio);
+
+    // Force pod deals contact damage to enemies it overlaps (immortal itself)
+    const f = this.options.force;
+    if (f) {
+      f.contactT -= dt;
+      if (f.contactT <= 0) {
+        for (const e of this.enemies.enemies) {
+          if (e.dead || e instanceof MegaBoss) continue;
+          if (Math.hypot(e.x - f.x, e.y - f.y) < e.radius + f.radius) {
+            e.hp -= 2;
+            if (e.hitFlash !== undefined) e.hitFlash = 0.08;
+            f.contactT = 0.15;
+            if (e.hp <= 0) {
+              e.dead = true;
+              this.addScore(e.score, e.x, e.y);
+              this.options.onEnemyKill(e.x, e.y);
+              const big = e.radius > 20;
+              this.fx.explosion(e.x, e.y, {
+                color: big ? '#ff80c0' : '#ffb060',
+                count: big ? 70 : 24,
+                speed: big ? 340 : 220,
+                size: big ? 6 : 4,
+              });
+              audio.explode(big);
+            }
+            break;
+          }
+        }
+      }
+    }
 
     // enemies & enemy bullets vs player
     const p = this.player;
@@ -500,13 +532,20 @@ export class Game {
       ctx.fill();
     }
 
-    // option unit indicators (small glowing circles + F/B/D labels, bottom-left)
+    // option unit indicators (small glowing circles, bottom-left):
+    // Force first (label F, D while launched), then Bits (label B).
     const opts = this.options.units;
-    for (let i = 0; i < opts.length; i++) {
-      const u = opts[i];
-      const ox = 20 + i * 22;
+    const order = [...opts].sort((a, b) => {
+      if (a.kind === b.kind) return 0;
+      return a.kind === 'force' ? -1 : 1;
+    });
+    let slot = 0;
+    for (const u of order) {
+      const ox = 20 + slot * 22;
       const oy = H - 48;
-      const det = u.mode === 'detached' || u.mode === 'recall';
+      slot++;
+      const isForce = u.kind === 'force';
+      const det = isForce && (u.mode === 'detached' || u.mode === 'recall');
       ctx.beginPath();
       ctx.arc(ox, oy, 8, 0, Math.PI * 2);
       ctx.fillStyle = u.hitFlash > 0 ? '#ffffff'
@@ -518,11 +557,21 @@ export class Game {
       ctx.fillStyle = det ? '#6a7a95' : '#cfe0ff';
       ctx.font = '11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(det ? 'D' : (u.mode === 'front' ? 'F' : 'B'), ox, oy + 22);
+      ctx.fillText(det ? 'D' : (isForce ? 'F' : 'B'), ox, oy + 22);
+    }
+    // missile level indicator
+    if (this.options.missileLevel >= 1) {
+      const ox = 20 + slot * 22;
+      const oy = H - 48;
+      slot++;
+      ctx.fillStyle = '#ffb060';
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`M${this.options.missileLevel}`, ox, oy + 4);
     }
     // pending capsule indicators (dimmed)
     for (let i = 0; i < this.options.capsules.length; i++) {
-      const ox = 20 + (opts.length + i) * 22;
+      const ox = 20 + (slot + i) * 22;
       const oy = H - 48;
       ctx.beginPath();
       ctx.arc(ox, oy, 8, 0, Math.PI * 2);
