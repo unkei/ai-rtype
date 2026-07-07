@@ -213,7 +213,7 @@ export class Game {
 
     // enemies & enemy bullets vs player
     const p = this.player;
-    if (!p.alive || p.invuln > 0) return;
+    if (!p.alive || p.invuln > 0 || p.entering) return;
     if (this.terrain.hitTest(p.x, p.y, p.radius + 2)) {
       this.killPlayer();
       return;
