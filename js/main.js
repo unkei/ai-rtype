@@ -142,7 +142,7 @@ export class Game {
     this.options.update(dt, this.player, this.bullets, this.input);
     this.terrain.update(dt, this.enemies.loop);
     this.fx.update(dt);
-    this.checkCollisions();
+    this.checkCollisions(dt);
 
     if (!this.player.alive) {
       this.respawnTimer -= dt;
@@ -156,7 +156,7 @@ export class Game {
     }
   }
 
-  checkCollisions() {
+  checkCollisions(dt) {
     // bullets vs terrain (both sides' shots are stopped by rock) — wall-crawling
     // missiles/flames handle their own terrain interaction in BulletManager.
     for (const b of this.bullets.list) {
