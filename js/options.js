@@ -217,9 +217,8 @@ export class OptionManager {
         continue;
       }
 
-      // Force logic
-      u.contactT = Math.max(0, u.contactT - dt);
-
+      // Force logic — contactT (contact-damage cooldown) is ticked by the
+      // collision pass in main.js, not here.
       if (u.docked) {
         u.x += (forceTarget.x - u.x) * SPRING * dt;
         u.y += (forceTarget.y - u.y) * SPRING * dt;

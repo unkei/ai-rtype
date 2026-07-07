@@ -12,7 +12,8 @@ const CHARGE_MIN = 0.4;       // hold time before a release becomes a beam
 const MISSILE_SEEK_VX = 260;
 const MISSILE_SEEK_VY = 320;
 const MISSILE_CRAWL_VX = 340;
-const MISSILE_CRAWL_CLIMB = 600;   // px/s vertical adjustment while crawling
+const MISSILE_CRAWL_CLIMB = 1400;  // px/s vertical adjustment while crawling
+const MISSILE_LEAD = 32;           // look-ahead so climbs start before the wall face
 const MISSILE_FLOOR_Y = H - 48;
 const MISSILE_CEIL_Y = 48;
 
@@ -80,7 +81,7 @@ class Bullet {
           let best = null;
           for (const s of terrain.segments) {
             if (s.dead) continue;
-            if (this.x + 4 < s.x || this.x - 4 > s.x + s.w) continue;
+            if (this.x + MISSILE_LEAD < s.x || this.x - 4 > s.x + s.w) continue;
             if (s.y + s.h > H - 170) {
               if (best === null || s.y < best) best = s.y;
             }
@@ -90,7 +91,7 @@ class Bullet {
           let best = null;
           for (const s of terrain.segments) {
             if (s.dead) continue;
-            if (this.x + 4 < s.x || this.x - 4 > s.x + s.w) continue;
+            if (this.x + MISSILE_LEAD < s.x || this.x - 4 > s.x + s.w) continue;
             if (s.y < 170) {
               const bottom = s.y + s.h;
               if (best === null || bottom > best) best = bottom;
