@@ -107,8 +107,8 @@ export class Game {
   }
 
   updateSplash(dt) {
-    // auto-advance after 5.5s or skip on fire
-    if (this.stateTime > 5.5 || this.input.firePressed || this.input.startPressed) {
+    // auto-advance after presents+pause (3.8s) or skip on fire
+    if (this.stateTime > 3.8 || this.input.firePressed || this.input.startPressed) {
       this.setState(STATE.TITLE);
     }
   }
@@ -327,39 +327,18 @@ export class Game {
     const t = this.stateTime;
     ctx.textAlign = 'center';
 
-    // "UNNO STUDIO presents" — fade in 0-0.8s, hold, fade out 2.0-2.8s
-    const a1 = t < 0.8 ? t / 0.8 : t < 2.0 ? 1.0 : Math.max(0, 1.0 - (t - 2.0) / 0.8);
+    // "STUDIO UNNO presents" — 500ms pause, fade in 0.5-1.3s, hold, fade out 2.5-3.3s, 500ms pause → title
+    const a1 = t < 0.5 ? 0 : t < 1.3 ? (t - 0.5) / 0.8 : t < 2.5 ? 1.0 : Math.max(0, 1.0 - (t - 2.5) / 0.8);
     if (a1 > 0.01) {
       ctx.globalAlpha = a1;
       ctx.fillStyle = '#8fa8cc';
       ctx.font = '22px monospace';
-      ctx.fillText('UNNO STUDIO presents', W / 2, H / 2 - 20);
-      ctx.globalAlpha = 1;
-    }
-
-    // "AI R-TYPE" — fade in from t=2.5
-    const a2 = t < 2.5 ? 0 : Math.min(1, (t - 2.5) / 1.5);
-    if (a2 > 0.01) {
-      ctx.globalAlpha = a2;
-      const pulse = a2 >= 1 ? 0.8 + Math.sin(t * 1.5) * 0.2 : 1;
-      ctx.shadowBlur = 24 * a2 * pulse;
-      ctx.shadowColor = '#7df9ff';
-      ctx.fillStyle = '#8fd0ff';
-      ctx.font = 'bold 72px monospace';
-      ctx.fillText('AI R-TYPE', W / 2, H / 2 + 28);
-      ctx.shadowBlur = 0;
-
-      if (a2 > 0.7) {
-        ctx.globalAlpha = (a2 - 0.7) / 0.3;
-        ctx.fillStyle = '#4a6a8a';
-        ctx.font = '20px monospace';
-        ctx.fillText('— FABLE EDITION —', W / 2, H / 2 + 72);
-      }
+      ctx.fillText('STUDIO UNNO presents', W / 2, H / 2);
       ctx.globalAlpha = 1;
     }
 
     // skip hint
-    if (t > 1.5 && Math.floor(t * 2) % 2 === 0) {
+    if (t > 1.0 && Math.floor(t * 2) % 2 === 0) {
       ctx.fillStyle = 'rgba(70,97,138,0.55)';
       ctx.font = '14px monospace';
       ctx.fillText('PRESS FIRE TO SKIP', W / 2, H - 52);
@@ -438,11 +417,11 @@ export class Game {
     this.fx.renderPopups(ctx);
     this.renderHud(ctx);
 
-    // Pulsing red vignette overlay
-    const vgAlpha = 0.22 + Math.sin(this.time * 2.5) * 0.1;
-    const vg = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, 560);
+    // Dark edge vignette (no red — atmosphere only)
+    const vgAlpha = 0.45 + Math.sin(this.time * 2.5) * 0.08;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, 180, W / 2, H / 2, 560);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, `rgba(190,20,20,${vgAlpha})`);
+    vg.addColorStop(1, `rgba(0,0,0,${vgAlpha})`);
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
 

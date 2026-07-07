@@ -606,7 +606,7 @@ export class Render3D {
     o.visible = !(p.invuln > 0 && Math.floor(p.time * 12) % 2 === 0);
     // bank into vertical movement
     const targetRoll = game.input.moveY * 0.55;
-    o.rotation.x += (targetRoll - o.rotation.x) * 0.18;
+    o.rotation.x = targetRoll;
 
     const flame = o.userData.flame;
     flame.scale.y = 0.8 + Math.sin(p.time * 40) * 0.35;
@@ -846,8 +846,8 @@ export class Render3D {
     const p = game.player;
     const followX = game.state === STATE.PLAYING && p.alive ? wx(p.x) * 0.05 : 0;
     const followY = game.state === STATE.PLAYING && p.alive ? wy(p.y) * 0.05 : 0;
-    this.camera.position.x += (followX - this.camera.position.x) * 0.05;
-    this.camera.position.y += (followY - this.camera.position.y) * 0.05;
+    this.camera.position.x = followX;
+    this.camera.position.y = followY;
     this.camera.lookAt(this.camera.position.x * 0.5, this.camera.position.y * 0.5, 0);
   }
 
