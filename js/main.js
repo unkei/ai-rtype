@@ -304,6 +304,8 @@ export class Game {
     if (this.stateTime > 1 && (this.input.firePressed || this.input.startPressed)) {
       this.setState(STATE.TITLE);
     }
+    // return to title automatically after a while
+    if (this.stateTime > 8) this.setState(STATE.TITLE);
   }
 
   // ------------------------------------------------------------- overlay
