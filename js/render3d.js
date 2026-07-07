@@ -23,6 +23,7 @@ const ENVS = [
     fogNear:   750, fogFar: 1500,
     ambColor:  new THREE.Color(0x8090b0), ambInt:  1.3,
     sunColor:  new THREE.Color(0xffffff), sunInt:  1.8,
+    rimColor:  new THREE.Color(0x4060a0), rimInt:  0.7,
     showPlanet: true,
     planetColor: new THREE.Color(0x24455f),
     planetGlowColor: new THREE.Color(0x4f9ec4),
@@ -30,9 +31,10 @@ const ENVS = [
   {
     bg:        new THREE.Color(0x0c0407),
     fog:       new THREE.Color(0x180608),
-    fogNear:   260, fogFar: 720,
-    ambColor:  new THREE.Color(0xb03020), ambInt:  1.1,
-    sunColor:  new THREE.Color(0xff5010), sunInt:  2.5,
+    fogNear:   400, fogFar: 900,
+    ambColor:  new THREE.Color(0xc85040), ambInt:  1.7,
+    sunColor:  new THREE.Color(0xff5010), sunInt:  2.8,
+    rimColor:  new THREE.Color(0xff7040), rimInt:  2.6,
     showPlanet: false,
     planetColor: new THREE.Color(0x24455f),
     planetGlowColor: new THREE.Color(0x4f9ec4),
@@ -43,6 +45,7 @@ const ENVS = [
     fogNear:   450, fogFar: 1050,
     ambColor:  new THREE.Color(0xa07030), ambInt:  1.6,
     sunColor:  new THREE.Color(0xffcc60), sunInt:  2.0,
+    rimColor:  new THREE.Color(0xffb060), rimInt:  1.2,
     showPlanet: true,
     planetColor: new THREE.Color(0x5f3a18),
     planetGlowColor: new THREE.Color(0xc47840),
@@ -351,6 +354,10 @@ export class Render3D {
     this._sun = new THREE.DirectionalLight(0xffffff, 1.8);
     this._sun.position.set(200, 300, 400);
     this.scene.add(this._sun);
+    // low grazing rim light — outlines terrain silhouettes on dark stages
+    this._rim = new THREE.DirectionalLight(0x4060a0, 0.7);
+    this._rim.position.set(-420, -160, 90);
+    this.scene.add(this._rim);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -806,6 +813,8 @@ export class Render3D {
     this._ambLight.intensity += (env.ambInt - this._ambLight.intensity) * k;
     this._sun.color.lerp(env.sunColor, k);
     this._sun.intensity += (env.sunInt - this._sun.intensity) * k;
+    this._rim.color.lerp(env.rimColor, k);
+    this._rim.intensity += (env.rimInt - this._rim.intensity) * k;
 
     this._planet.visible = env.showPlanet;
     this._planetGlow.visible = env.showPlanet;
