@@ -609,7 +609,9 @@ export class Render3D {
     o.rotation.x = targetRoll;
 
     const flame = o.userData.flame;
-    flame.scale.y = 0.8 + Math.sin(p.time * 40) * 0.35;
+    const boost = p.entering ? 2.6 : 0.8;
+    flame.scale.y = boost + Math.sin(p.time * 40) * 0.35;
+    flame.scale.x = flame.scale.z = p.entering ? 1.5 : 1;
 
     const orb = o.userData.chargeOrb;
     if (p.charging && p.chargeTime > 0.15) {

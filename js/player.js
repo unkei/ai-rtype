@@ -76,7 +76,7 @@ export class BulletManager {
 
 export class Player {
   constructor() {
-    this.x = 120;
+    this.x = -90;             // fly-in intro: start off-screen, jets blazing
     this.y = H / 2;
     this.radius = 7;          // generous-to-the-player hitbox
     this.cooldown = 0;
@@ -85,6 +85,7 @@ export class Player {
     this.alive = true;
     this.invuln = 0;          // seconds of post-respawn invulnerability
     this.time = 0;
+    this.entering = true;
   }
 
   get chargeRatio() {
@@ -104,12 +105,24 @@ export class Player {
     this.invuln = 2;
     this.charging = false;
     this.chargeTime = 0;
+    this.entering = false;
     this._justRespawned = true;
   }
 
   update(dt, input, bullets) {
     this.time += dt;
     if (!this.alive) return;
+
+    if (this.entering) {
+      this.x += 460 * dt;
+      if (this.x >= 120) {
+        this.x = 120;
+        this.entering = false;
+        this.invuln = 1;
+      }
+      return;               // no control or firing during the fly-in
+    }
+
     if (this.invuln > 0) this.invuln -= dt;
 
     if (this._justRespawned) {
